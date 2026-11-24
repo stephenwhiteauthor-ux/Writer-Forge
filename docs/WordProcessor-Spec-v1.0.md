@@ -23,7 +23,7 @@ editor components.
 
 **Features:** New Document, Open Document, Save Document, Save As, Recent Files, Auto Save, Backup Creation, Version History, Document Properties.
 
-**Supported Formats:** NFP (Novel Forge Project), DOCX Import, DOCX Export, PDF Export, RTF Export, TXT Export.
+**Supported Formats:** WForge Package (.wforge), DOCX Import, DOCX Export, PDF Export, RTF Export, TXT Export.
 
 ## 2. TEXT FORMATTING
 
@@ -136,9 +136,9 @@ Real-time Spell Check, Custom Dictionary, Ignore Word, Add Word, Language Select
 
 Print, Print Preview, Page Range, Selection Only, Multiple Copies.
 
-## 16. NOVEL FORGE INTEGRATION
+## 16. FUTURE INTEGRATIONS
 
-Character Database Integration (Link Character, View Profile), Location Database Integration, Research Integration, Timeline Integration, Project Integration (Chapter Manager, Scene Manager, Drag and Drop Chapters/Scenes).
+Character Database Integration (Link Character, View Profile), Location Database Integration, Research Integration, Timeline Integration, Project Integration (Chapter Manager, Scene Manager).
 
 ## 17. FUTURE VERSION 2 FEATURES
 
@@ -148,4 +148,4 @@ Track Changes, Comments, Collaboration, AI Assisted Editing, Grammar Suggestions
 
 Mail Merge, VBA Compatibility, SharePoint Integration, Labels, Envelopes, Forms, XML Mapping, Office Automation, Corporate Workflows.
 
-**RATIONALE:** Novel Forge is a writer's platform, not an office productivity suite. Development effort should focus on Writing, Editing, Research, Project Management, and Manuscript Production rather than business-oriented Microsoft Word features.
+**RATIONALE:** WriterForge is a writer's platform, not an office productivity suite. Development effort should focus on Writing, Editing, Research, Project Management, and Manuscript Production rather than business-oriented Microsoft Word features.

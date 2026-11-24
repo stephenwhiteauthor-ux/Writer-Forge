@@ -38,8 +38,8 @@ architecture decisions and build order.
 - **.NET 10 / WPF** — no third-party editor controls, no paid components
 - **DocumentFormat.OpenXml** — DOCX read/write
 - **QuestPDF** — PDF generation (planned)
-- **WeCantSpell.Hunspell** — spell checking (shared with Novel Forge)
-- **LanguageTool** — grammar checking (shared with Novel Forge)
+- **WeCantSpell.Hunspell** — spell checking
+- **LanguageTool** — grammar checking
 
 ## Build
 
@@ -59,8 +59,8 @@ docs/                    Product spec and architecture review
 ```
 
 `WriterForge.Editor` is intentionally a separate class library so the editor
-can later be hosted inside [Novel Forge](https://github.com/stephenwhiteauthor-ux/StoryCraft.DOE2),
-the companion project-management application for writers.
+control can be embedded in `WriterForge.App` today and reused or hosted by
+other applications in the future.
 
 ## License
 
