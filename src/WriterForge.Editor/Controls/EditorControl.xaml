@@ -5,10 +5,137 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="800">
+    <UserControl.Resources>
+        <Style x:Key="StyleNormal" TargetType="Paragraph"/>
+        <Style x:Key="StyleHeading1" TargetType="Paragraph">
+            <Setter Property="FontFamily" Value="Georgia"/>
+            <Setter Property="FontSize" Value="26"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,18,0,8"/>
+        </Style>
+        <Style x:Key="StyleHeading2" TargetType="Paragraph">
+            <Setter Property="FontFamily" Value="Georgia"/>
+            <Setter Property="FontSize" Value="21"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,14,0,6"/>
+        </Style>
+        <Style x:Key="StyleHeading3" TargetType="Paragraph">
+            <Setter Property="FontFamily" Value="Georgia"/>
+            <Setter Property="FontSize" Value="17"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,12,0,4"/>
+        </Style>
+        <Style x:Key="StyleQuote" TargetType="Paragraph">
+            <Setter Property="FontStyle" Value="Italic"/>
+            <Setter Property="Margin" Value="48,6,48,6"/>
+        </Style>
+        <Style x:Key="StyleCaption" TargetType="Paragraph">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontStyle" Value="Italic"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,4,0,12"/>
+        </Style>
+    </UserControl.Resources>
+
     <Grid>
-        <!-- Placeholder surface. The real editor (formatting bar, styles,
-             spell/grammar underlines, pagination) is built on this control. -->
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Formatting bar -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
+                BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}"
+                BorderThickness="0,0,0,1"
+                Padding="4,2">
+            <WrapPanel VerticalAlignment="Center">
+                <Button x:Name="UndoButton" Content="Undo" ToolTip="Undo (Ctrl+Z)" Padding="6,2" Margin="1" Click="UndoClick"/>
+                <Button x:Name="RedoButton" Content="Redo" ToolTip="Redo (Ctrl+Y)" Padding="6,2" Margin="1" Click="RedoClick"/>
+
+                <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
+
+                <ComboBox x:Name="StyleBox" Width="110" Margin="1" ToolTip="Paragraph style"
+                          SelectionChanged="StyleBox_SelectionChanged">
+                    <ComboBoxItem Content="Normal" Tag="StyleNormal"/>
+                    <ComboBoxItem Content="Heading 1" Tag="StyleHeading1"/>
+                    <ComboBoxItem Content="Heading 2" Tag="StyleHeading2"/>
+                    <ComboBoxItem Content="Heading 3" Tag="StyleHeading3"/>
+                    <ComboBoxItem Content="Quote" Tag="StyleQuote"/>
+                    <ComboBoxItem Content="Caption" Tag="StyleCaption"/>
+                </ComboBox>
+                <ComboBox x:Name="FontBox" Width="140" Margin="1" ToolTip="Font"
+                          SelectionChanged="FontBox_SelectionChanged">
+                    <ComboBoxItem Content="Georgia" Tag="Georgia"/>
+                    <ComboBoxItem Content="Times New Roman" Tag="Times New Roman"/>
+                    <ComboBoxItem Content="Arial" Tag="Arial"/>
+                    <ComboBoxItem Content="Calibri" Tag="Calibri"/>
+                    <ComboBoxItem Content="Verdana" Tag="Verdana"/>
+                    <ComboBoxItem Content="Courier New" Tag="Courier New"/>
+                    <ComboBoxItem Content="Garamond" Tag="Garamond"/>
+                </ComboBox>
+                <ComboBox x:Name="SizeBox" Width="55" Margin="1" ToolTip="Font size"
+                          SelectionChanged="SizeBox_SelectionChanged">
+                    <ComboBoxItem Content="8" Tag="8"/>
+                    <ComboBoxItem Content="9" Tag="9"/>
+                    <ComboBoxItem Content="10" Tag="10"/>
+                    <ComboBoxItem Content="11" Tag="11"/>
+                    <ComboBoxItem Content="12" Tag="12"/>
+                    <ComboBoxItem Content="14" Tag="14"/>
+                    <ComboBoxItem Content="16" Tag="16"/>
+                    <ComboBoxItem Content="18" Tag="18"/>
+                    <ComboBoxItem Content="20" Tag="20"/>
+                    <ComboBoxItem Content="24" Tag="24"/>
+                    <ComboBoxItem Content="28" Tag="28"/>
+                    <ComboBoxItem Content="32" Tag="32"/>
+                    <ComboBoxItem Content="36" Tag="36"/>
+                    <ComboBoxItem Content="48" Tag="48"/>
+                    <ComboBoxItem Content="72" Tag="72"/>
+                </ComboBox>
+
+                <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
+
+                <ToggleButton x:Name="BoldButton" Content="B" FontWeight="Bold" ToolTip="Bold (Ctrl+B)"
+                              Padding="7,2" Margin="1" Click="BoldClick"/>
+                <ToggleButton x:Name="ItalicButton" Content="I" FontStyle="Italic" ToolTip="Italic (Ctrl+I)"
+                              Padding="7,2" Margin="1" Click="ItalicClick"/>
+                <ToggleButton x:Name="UnderlineButton" ToolTip="Underline (Ctrl+U)"
+                              Padding="7,2" Margin="1" Click="UnderlineClick">
+                    <TextBlock Text="U" TextDecorations="Underline"/>
+                </ToggleButton>
+                <ToggleButton x:Name="StrikeButton" Click="StrikeClick">
+                    <TextBlock Text="S" TextDecorations="Strikethrough" Padding="7,2"/>
+                    <ToggleButton.ToolTip>Strikethrough</ToggleButton.ToolTip>
+                </ToggleButton>
+                <ToggleButton x:Name="SubButton" Content="x₂" ToolTip="Subscript" Padding="7,2" Margin="1" Click="SubClick"/>
+                <ToggleButton x:Name="SupButton" Content="x²" ToolTip="Superscript" Padding="7,2" Margin="1" Click="SupClick"/>
+
+                <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
+
+                <ToggleButton x:Name="AlignLeftButton" Content="⇤" ToolTip="Align left" Padding="6,2" Margin="1" Click="AlignClick" Tag="Left"/>
+                <ToggleButton x:Name="AlignCenterButton" Content="↔" ToolTip="Align centre" Padding="6,2" Margin="1" Click="AlignClick" Tag="Center"/>
+                <ToggleButton x:Name="AlignRightButton" Content="⇥" ToolTip="Align right" Padding="6,2" Margin="1" Click="AlignClick" Tag="Right"/>
+                <ToggleButton x:Name="AlignJustifyButton" Content="≡" ToolTip="Justify" Padding="6,2" Margin="1" Click="AlignClick" Tag="Justify"/>
+
+                <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
+
+                <ToggleButton x:Name="BulletsButton" Content="•" ToolTip="Bulleted list" Padding="7,2" Margin="1" Click="BulletsClick"/>
+                <ToggleButton x:Name="NumbersButton" Content="1." ToolTip="Numbered list" Padding="7,2" Margin="1" Click="NumbersClick"/>
+
+                <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
+
+                <Button Content="Image" ToolTip="Insert image" Padding="6,2" Margin="1" Click="InsertImageClick"/>
+
+                <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
+
+                <Button Content="Clear" ToolTip="Clear formatting" Padding="6,2" Margin="1" Click="ClearFormattingClick"/>
+            </WrapPanel>
+        </Border>
+
+        <!-- Document surface -->
         <RichTextBox x:Name="Document"
+                     Grid.Row="1"
                      AcceptsReturn="True"
                      VerticalScrollBarVisibility="Auto"
                      FontFamily="Georgia"
@@ -23,5 +150,12 @@
                 </Paragraph>
             </FlowDocument>
         </RichTextBox>
+
+        <!-- Status bar -->
+        <StatusBar Grid.Row="2">
+            <StatusBarItem>
+                <TextBlock x:Name="StatusText" Text="Words: 0"/>
+            </StatusBarItem>
+        </StatusBar>
     </Grid>
 </UserControl>

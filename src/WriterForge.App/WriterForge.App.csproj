@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\WriterForge.Editor\WriterForge.Editor.csproj" />
     <Resource Include="app.ico" />
+    <None Include="Dictionaries\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

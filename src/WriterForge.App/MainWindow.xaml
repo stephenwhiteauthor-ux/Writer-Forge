@@ -3,11 +3,85 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WriterForge.App"
         xmlns:editor="clr-namespace:WriterForge.Editor.Controls;assembly=WriterForge.Editor"
         mc:Ignorable="d"
         Title="WriterForge" Height="700" Width="1000"
         WindowStartupLocation="CenterScreen">
-    <Grid>
-        <editor:EditorControl/>
-    </Grid>
+
+    <Window.Resources>
+        <Style TargetType="MenuItem">
+            <Setter Property="Padding" Value="6,3"/>
+        </Style>
+    </Window.Resources>
+
+    <Window.InputBindings>
+        <KeyBinding Key="N" Modifiers="Control" Command="{x:Static local:MainWindow.NewDocumentCommand}"/>
+        <KeyBinding Key="O" Modifiers="Control" Command="{x:Static local:MainWindow.OpenDocumentCommand}"/>
+        <KeyBinding Key="S" Modifiers="Control" Command="{x:Static local:MainWindow.SaveDocumentCommand}"/>
+        <KeyBinding Key="S" Modifiers="Control+Shift" Command="{x:Static local:MainWindow.SaveDocumentAsCommand}"/>
+        <KeyBinding Key="F" Modifiers="Control" Command="{x:Static local:MainWindow.FindCommand}"/>
+        <KeyBinding Key="H" Modifiers="Control" Command="{x:Static local:MainWindow.ReplaceCommand}"/>
+    </Window.InputBindings>
+
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static local:MainWindow.NewDocumentCommand}" Executed="NewDocument_Executed"/>
+        <CommandBinding Command="{x:Static local:MainWindow.OpenDocumentCommand}" Executed="OpenDocument_Executed"/>
+        <CommandBinding Command="{x:Static local:MainWindow.SaveDocumentCommand}" Executed="SaveDocument_Executed"/>
+        <CommandBinding Command="{x:Static local:MainWindow.SaveDocumentAsCommand}" Executed="SaveDocumentAs_Executed"/>
+        <CommandBinding Command="{x:Static local:MainWindow.FindCommand}" Executed="Find_Executed"/>
+        <CommandBinding Command="{x:Static local:MainWindow.ReplaceCommand}" Executed="Replace_Executed"/>
+
+        <CommandBinding Command="Undo" Executed="Undo_Executed" CanExecute="EditCommand_CanExecute"/>
+        <CommandBinding Command="Redo" Executed="Redo_Executed" CanExecute="EditCommand_CanExecute"/>
+        <CommandBinding Command="Cut" Executed="Cut_Executed" CanExecute="EditCommand_CanExecute"/>
+        <CommandBinding Command="Copy" Executed="Copy_Executed" CanExecute="EditCommand_CanExecute"/>
+        <CommandBinding Command="Paste" Executed="Paste_Executed" CanExecute="EditCommand_CanExecute"/>
+        <CommandBinding Command="SelectAll" Executed="SelectAll_Executed" CanExecute="EditCommand_CanExecute"/>
+    </Window.CommandBindings>
+
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem Header="_New" Command="{x:Static local:MainWindow.NewDocumentCommand}" InputGestureText="Ctrl+N"/>
+                <MenuItem Header="_Open..." Command="{x:Static local:MainWindow.OpenDocumentCommand}" InputGestureText="Ctrl+O"/>
+                <MenuItem Header="_Save" Command="{x:Static local:MainWindow.SaveDocumentCommand}" InputGestureText="Ctrl+S"/>
+                <MenuItem Header="Save _As..." Command="{x:Static local:MainWindow.SaveDocumentAsCommand}" InputGestureText="Ctrl+Shift+S"/>
+                <Separator/>
+                <MenuItem Header="Export as _PDF..." Click="ExportPdf_Click"/>
+                <Separator/>
+                <MenuItem Header="E_xit" Click="Exit_Click"/>
+            </MenuItem>
+            <MenuItem Header="_Edit">
+                <MenuItem Header="_Undo" Command="Undo" InputGestureText="Ctrl+Z"/>
+                <MenuItem Header="_Redo" Command="Redo" InputGestureText="Ctrl+Y"/>
+                <Separator/>
+                <MenuItem Header="Cu_t" Command="Cut" InputGestureText="Ctrl+X"/>
+                <MenuItem Header="_Copy" Command="Copy" InputGestureText="Ctrl+C"/>
+                <MenuItem Header="_Paste" Command="Paste" InputGestureText="Ctrl+V"/>
+                <Separator/>
+                <MenuItem Header="Select _All" Command="SelectAll" InputGestureText="Ctrl+A"/>
+                <Separator/>
+                <MenuItem Header="_Find..." Command="{x:Static local:MainWindow.FindCommand}" InputGestureText="Ctrl+F"/>
+                <MenuItem Header="R_eplace..." Command="{x:Static local:MainWindow.ReplaceCommand}" InputGestureText="Ctrl+H"/>
+            </MenuItem>
+            <MenuItem Header="_Tools">
+                <MenuItem Header="Document _Statistics" Click="Statistics_Click"/>
+                <Separator/>
+                <MenuItem Header="_Smart Quotes" Click="SmartQuotes_Click"/>
+                <MenuItem Header="Normalise _Ellipsis" Click="Ellipsis_Click"/>
+                <MenuItem Header="Clean _Whitespace" Click="Whitespace_Click"/>
+                <MenuItem Header="Remove _Empty Paragraphs" Click="EmptyParagraphs_Click"/>
+                <Separator/>
+                <MenuItem Header="Run _All Typography Tools" Click="AllTypography_Click"/>
+
+                <Separator/>
+                <MenuItem Header="Macro _Recorder..." Click="MacroRecorder_Click"/>
+                <Separator/>
+                <MenuItem Header="_Settings..." Click="Settings_Click"/>
+            </MenuItem>
+        </Menu>
+
+        <editor:EditorControl x:Name="Editor"/>
+    </DockPanel>
 </Window>

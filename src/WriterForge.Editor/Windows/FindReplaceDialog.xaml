@@ -1,0 +1,51 @@
+<Window x:Class="WriterForge.Editor.Windows.FindReplaceDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Find and Replace" Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Topmost="False">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="70"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Label Content="Find:" VerticalAlignment="Center"/>
+            <TextBox x:Name="FindBox" Grid.Column="1" Margin="0,0,8,0"/>
+            <Button Grid.Column="2" Content="Find Next" Width="80" Click="FindNext_Click" IsDefault="True"/>
+        </Grid>
+
+        <Grid Grid.Row="1" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="70"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Label Content="Replace:" VerticalAlignment="Center"/>
+            <TextBox x:Name="ReplaceBox" Grid.Column="1" Margin="0,0,8,0"/>
+            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <Button Content="Replace" Width="70" Margin="0,0,4,0" Click="Replace_Click"/>
+                <Button Content="All" Width="50" Click="ReplaceAll_Click"/>
+            </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="70,8,0,0">
+            <CheckBox x:Name="MatchCaseBox" Content="Match case" Margin="0,0,12,0"/>
+            <CheckBox x:Name="WholeWordBox" Content="Whole word" Margin="0,0,12,0"/>
+            <CheckBox x:Name="RegexBox" Content="Regular expression"/>
+        </StackPanel>
+
+        <DockPanel Grid.Row="3" Margin="0,12,0,0">
+            <TextBlock x:Name="StatusText" VerticalAlignment="Center" DockPanel.Dock="Left"/>
+            <Button Content="Close" Width="80" HorizontalAlignment="Right" IsCancel="True" Click="Close_Click"/>
+        </DockPanel>
+    </Grid>
+</Window>
