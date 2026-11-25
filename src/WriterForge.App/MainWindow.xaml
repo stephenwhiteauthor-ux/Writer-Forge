@@ -22,6 +22,7 @@
         <KeyBinding Key="S" Modifiers="Control+Shift" Command="{x:Static local:MainWindow.SaveDocumentAsCommand}"/>
         <KeyBinding Key="F" Modifiers="Control" Command="{x:Static local:MainWindow.FindCommand}"/>
         <KeyBinding Key="H" Modifiers="Control" Command="{x:Static local:MainWindow.ReplaceCommand}"/>
+        <KeyBinding Key="P" Modifiers="Control" Command="Print"/>
     </Window.InputBindings>
 
     <Window.CommandBindings>
@@ -31,6 +32,8 @@
         <CommandBinding Command="{x:Static local:MainWindow.SaveDocumentAsCommand}" Executed="SaveDocumentAs_Executed"/>
         <CommandBinding Command="{x:Static local:MainWindow.FindCommand}" Executed="Find_Executed"/>
         <CommandBinding Command="{x:Static local:MainWindow.ReplaceCommand}" Executed="Replace_Executed"/>
+        <CommandBinding Command="Print" Executed="Print_Executed"/>
+        <CommandBinding Command="PrintPreview" Executed="PrintPreview_Executed"/>
 
         <CommandBinding Command="Undo" Executed="Undo_Executed" CanExecute="EditCommand_CanExecute"/>
         <CommandBinding Command="Redo" Executed="Redo_Executed" CanExecute="EditCommand_CanExecute"/>
@@ -50,6 +53,9 @@
                 <Separator/>
                 <MenuItem Header="Export as _PDF..." Click="ExportPdf_Click"/>
                 <Separator/>
+                <MenuItem Header="_Print..." Command="Print" InputGestureText="Ctrl+P"/>
+                <MenuItem Header="Print Pre_view..." Command="PrintPreview"/>
+                <MenuItem Header="Page Set_up..." Click="PageSetup_Click"/>
                 <MenuItem Header="E_xit" Click="Exit_Click"/>
             </MenuItem>
             <MenuItem Header="_Edit">
@@ -77,6 +83,7 @@
 
                 <Separator/>
                 <MenuItem Header="Macro _Recorder..." Click="MacroRecorder_Click"/>
+                <MenuItem Header="Writing _Analysis..." Click="Analysis_Click"/>
                 <Separator/>
                 <MenuItem Header="_Settings..." Click="Settings_Click"/>
             </MenuItem>

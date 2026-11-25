@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -211,6 +212,11 @@ public partial class MainWindow : Window
         new MacroRecorderWindow(Editor) { Owner = this }.ShowDialog();
     }
 
+    private void Analysis_Click(object sender, RoutedEventArgs e)
+    {
+        new WritingAnalysisWindow(Editor) { Owner = this }.ShowDialog();
+    }
+
     private void ReportTypographyResult(string name, int changes)
     {
         MessageBox.Show(
@@ -252,6 +258,40 @@ public partial class MainWindow : Window
         var changes = tool();
         if (MacroRecorder.IsRecording) MacroRecorder.Record(name);
         ReportTypographyResult(label, changes);
+    }
+
+    private void Print_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        var flowDocument = Editor.DocumentSurface.Document;
+        if (flowDocument is null) return;
+
+        var paginator = ((System.Windows.Documents.IDocumentPaginatorSource)flowDocument).DocumentPaginator;
+        var dialog = new PrintDialog();
+        if (dialog.ShowDialog() == true)
+        {
+            try
+            {
+                dialog.PrintDocument(paginator, _filePath ?? "Untitled");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Could not print:\n{ex.Message}", "WriterForge", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    private void PrintPreview_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        var flowDocument = Editor.DocumentSurface.Document;
+        if (flowDocument is null) return;
+        new PrintPreviewWindow(flowDocument) { Owner = this }.ShowDialog();
+    }
+
+    private void PageSetup_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new PageSetupWindow { Owner = this };
+        if (dialog.ShowDialog() == true)
+            Editor.ApplyPageSetup(dialog.PageSize, dialog.Margins);
     }
 
     private void Exit_Click(object sender, RoutedEventArgs e) => Close();

@@ -1,0 +1,49 @@
+<Window x:Class="WriterForge.Editor.Windows.PageSetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Page Setup" Width="380" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <GroupBox Header="Paper" Padding="8">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Size:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox x:Name="SizeBox" Width="180" SelectedIndex="0">
+                    <ComboBoxItem Content="Letter (8.5 × 11 in)" Tag="letter"/>
+                    <ComboBoxItem Content="A4 (210 × 297 mm)" Tag="a4"/>
+                    <ComboBoxItem Content="Legal (8.5 × 14 in)" Tag="legal"/>
+                </ComboBox>
+                <StackPanel Margin="16,0,0,0">
+                    <RadioButton x:Name="PortraitButton" Content="Portrait" IsChecked="True"/>
+                    <RadioButton x:Name="LandscapeButton" Content="Landscape" Margin="0,4,0,0"/>
+                </StackPanel>
+            </StackPanel>
+        </GroupBox>
+
+        <GroupBox Grid.Row="1" Header="Margins" Padding="8" Margin="0,12,0,0">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Preset:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox x:Name="MarginBox" Width="180" SelectedIndex="1">
+                    <ComboBoxItem Content="Narrow (0.5 in)" Tag="0.5"/>
+                    <ComboBoxItem Content="Normal (1 in)" Tag="1"/>
+                    <ComboBoxItem Content="Moderate (1.25 in)" Tag="1.25"/>
+                    <ComboBoxItem Content="Wide (2 in)" Tag="2"/>
+                </ComboBox>
+            </StackPanel>
+        </GroupBox>
+
+        <TextBlock Grid.Row="2" TextWrapping="Wrap" Foreground="Gray" FontSize="11" Margin="0,12,0,0"
+                   Text="Headers, footers and page numbers require the paginated document view, planned for a later version."/>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Cancel" Width="80" Margin="0,0,8,0" IsCancel="True"/>
+            <Button Content="OK" Width="80" IsDefault="True" Click="Ok_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

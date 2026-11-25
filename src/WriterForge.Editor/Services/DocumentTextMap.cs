@@ -68,6 +68,36 @@ namespace WriterForge.Editor.Services
             return new TextRange(start, end);
         }
 
+        /// <summary>
+        /// Create a TextRange spanning <paramref name="length"/> chars at
+        /// <paramref name="offset"/>, possibly across run boundaries.
+        /// Returns null if either end cannot be resolved.
+        /// </summary>
+        public TextRange? RangeForSpan(int offset, int length)
+        {
+            if (offset < 0 || length <= 0) return null;
+            var start = PositionAt(offset);
+            var end = PositionAt(offset + length - 1);
+            if (start is null || end is null) return null;
+            var endPos = end.GetPositionAtOffset(1) ?? end;
+            return new TextRange(start, endPos);
+        }
+
+        private TextPointer? PositionAt(int offset)
+        {
+            Segment? segment = null;
+            foreach (var s in Segments)
+            {
+                if (s.Start <= offset) segment = s;
+                else break;
+            }
+            if (segment is null) return null;
+            var local = offset - segment.Start;
+            return local < segment.Run.Text.Length
+                ? segment.Run.ContentStart.GetPositionAtOffset(local)
+                : null;
+        }
+
         /// <summary>Global offset of a position inside a run, or -1.</summary>
         public int OffsetOf(Run run, int localIndex)
         {

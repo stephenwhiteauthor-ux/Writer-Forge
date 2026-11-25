@@ -93,6 +93,11 @@
                     <ComboBoxItem Content="48" Tag="48"/>
                     <ComboBoxItem Content="72" Tag="72"/>
                 </ComboBox>
+                <Button x:Name="FontColorButton" Content="A" Foreground="#C00000" FontWeight="Bold"
+                        ToolTip="Font colour" Padding="6,2" Margin="1" Click="FontColorClick"/>
+                <Button x:Name="HighlightButton" ToolTip="Highlight colour" Padding="6,2" Margin="1" Click="HighlightClick">
+                    <TextBlock Text="ab" Background="#FFF2A8" Padding="3,0"/>
+                </Button>
 
                 <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
 
@@ -117,6 +122,34 @@
                 <ToggleButton x:Name="AlignCenterButton" Content="↔" ToolTip="Align centre" Padding="6,2" Margin="1" Click="AlignClick" Tag="Center"/>
                 <ToggleButton x:Name="AlignRightButton" Content="⇥" ToolTip="Align right" Padding="6,2" Margin="1" Click="AlignClick" Tag="Right"/>
                 <ToggleButton x:Name="AlignJustifyButton" Content="≡" ToolTip="Justify" Padding="6,2" Margin="1" Click="AlignClick" Tag="Justify"/>
+
+                <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
+
+                <ComboBox x:Name="SpacingBox" Width="70" Margin="1" ToolTip="Line spacing"
+                          SelectionChanged="SpacingBox_SelectionChanged">
+                    <ComboBoxItem Content="Single" Tag="1" IsSelected="True"/>
+                    <ComboBoxItem Content="1.15" Tag="1.15"/>
+                    <ComboBoxItem Content="1.5" Tag="1.5"/>
+                    <ComboBoxItem Content="Double" Tag="2"/>
+                </ComboBox>
+                <ComboBox x:Name="BeforeBox" Width="62" Margin="1" ToolTip="Space before paragraph"
+                          SelectionChanged="BeforeBox_SelectionChanged">
+                    <ComboBoxItem Content="Auto" Tag="" IsSelected="True"/>
+                    <ComboBoxItem Content="0 pt" Tag="0"/>
+                    <ComboBoxItem Content="6 pt" Tag="6"/>
+                    <ComboBoxItem Content="12 pt" Tag="12"/>
+                    <ComboBoxItem Content="18 pt" Tag="18"/>
+                </ComboBox>
+                <ComboBox x:Name="AfterBox" Width="62" Margin="1" ToolTip="Space after paragraph"
+                          SelectionChanged="AfterBox_SelectionChanged">
+                    <ComboBoxItem Content="Auto" Tag="" IsSelected="True"/>
+                    <ComboBoxItem Content="0 pt" Tag="0"/>
+                    <ComboBoxItem Content="6 pt" Tag="6"/>
+                    <ComboBoxItem Content="12 pt" Tag="12"/>
+                    <ComboBoxItem Content="18 pt" Tag="18"/>
+                </ComboBox>
+                <Button Content="→|" ToolTip="Increase indent" Padding="6,2" Margin="1" Click="IndentClick" Tag="24"/>
+                <Button Content="←|" ToolTip="Decrease indent" Padding="6,2" Margin="1" Click="IndentClick" Tag="-24"/>
 
                 <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
 
