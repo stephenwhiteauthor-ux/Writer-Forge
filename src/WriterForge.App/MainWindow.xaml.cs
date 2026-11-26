@@ -16,7 +16,7 @@ namespace WriterForge.App;
 /// <summary>
 /// Interaction logic for MainWindow.xaml
 /// </summary>
-public partial class MainWindow : Window
+public partial class MainWindow : RibbonWindow
 {
     public static readonly RoutedUICommand NewDocumentCommand = new(nameof(NewDocumentCommand), nameof(NewDocumentCommand), typeof(MainWindow));
     public static readonly RoutedUICommand OpenDocumentCommand = new(nameof(OpenDocumentCommand), nameof(OpenDocumentCommand), typeof(MainWindow));
