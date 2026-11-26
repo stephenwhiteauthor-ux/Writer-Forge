@@ -188,9 +188,18 @@
                     <RibbonToggleButton x:Name="ReadModeToggle" Label="Read Mode" ToolTip="Page view without ribbon" IsChecked="False" Click="ReadModeToggle_Click"/>
                 </RibbonGroup>
                 <RibbonGroup Header="Show">
-                    <RibbonToggleButton x:Name="NavPaneToggle" Label="Navigation Pane" ToolTip="Headings sidebar" IsChecked="False" Click="NavPaneToggle_Click"/>
-                    <RibbonToggleButton x:Name="RulerToggle" Label="Ruler" ToolTip="Page ruler with margin markers" IsChecked="False" Click="RulerToggle_Click"/>
-                    <RibbonToggleButton x:Name="GridlinesToggle" Label="Gridlines" ToolTip="Show table borders" IsChecked="False" Click="GridlinesToggle_Click"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <CheckBox x:Name="NavCheck" Click="NavPaneToggle_Click" VerticalAlignment="Center"/>
+                        <TextBlock Text="Navigation Pane" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <CheckBox x:Name="RulerCheck" Click="RulerToggle_Click" VerticalAlignment="Center"/>
+                        <TextBlock Text="Ruler" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <CheckBox x:Name="GridCheck" Click="GridlinesToggle_Click" VerticalAlignment="Center"/>
+                        <TextBlock Text="Gridlines" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                    </StackPanel>
                 </RibbonGroup>
             </RibbonTab>
 

@@ -465,13 +465,13 @@ public partial class MainWindow : RibbonWindow
     }
 
     private void NavPaneToggle_Click(object sender, RoutedEventArgs e) =>
-        Editor.SetNavigationPane(NavPaneToggle.IsChecked == true);
+        Editor.SetNavigationPane(NavCheck.IsChecked == true);
 
     private void RulerToggle_Click(object sender, RoutedEventArgs e) =>
-        Editor.SetRuler(RulerToggle.IsChecked == true);
+        Editor.SetRuler(RulerCheck.IsChecked == true);
 
     private void GridlinesToggle_Click(object sender, RoutedEventArgs e) =>
-        Editor.SetGridlines(GridlinesToggle.IsChecked == true);
+        Editor.SetGridlines(GridCheck.IsChecked == true);
 
     private void InsertFootnote_Click(object sender, RoutedEventArgs e) => Editor.InsertFootnote();
     private void InsertEndnote_Click(object sender, RoutedEventArgs e) => Editor.InsertFootnote(endnote: true);
