@@ -1,19 +1,26 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
 using WriterForge.Editor.Services;
 
 namespace WriterForge.Editor.Controls
 {
     /// <summary>
-    /// Read-only paginated view: renders <see cref="PageModel"/>s as page
-    /// sheets with headers, footers, page numbers and page-bottom footnotes.
-    /// Editing stays in the normal document view.
+    /// Paginated view: renders <see cref="PageModel"/>s as page sheets with
+    /// headers, footers, page numbers and page-bottom footnotes. In editable
+    /// mode each page body is a RichTextBox slice; edits are merged back into
+    /// the master document by the host.
     /// </summary>
     public partial class PagedPreview : UserControl
     {
         private FlowDocument? _source;
+        private readonly List<RichTextBox> _bodyEditors = new();
+        private bool _editable;
+
+        /// <summary>Raised when any page-body editor's text changes.</summary>
+        public event EventHandler? PagesEdited;
 
         public PagedPreview()
         {
@@ -21,15 +28,63 @@ namespace WriterForge.Editor.Controls
         }
 
         /// <summary>Render the given pages. Slices are rebuilt from the live document.</summary>
-        internal void ShowPages(IReadOnlyList<PageModel> pages, FlowDocument source)
+        internal void ShowPages(
+            IReadOnlyList<PageModel> pages, FlowDocument source,
+            IReadOnlyDictionary<Paragraph, int> ordinals, bool editable)
         {
             _source = source;
+            _editable = editable;
+            _bodyEditors.Clear();
             PagesPanel.Children.Clear();
             for (var i = 0; i < pages.Count; i++)
-                PagesPanel.Children.Add(BuildPage(pages[i], pages.Count, i));
+                PagesPanel.Children.Add(BuildPage(pages[i], pages.Count, i, ordinals));
         }
 
-        private UIElement BuildPage(PageModel page, int pageCount, int index)
+        /// <summary>The body-slice documents of all pages, in page order.</summary>
+        internal IReadOnlyList<FlowDocument> GetPageDocuments() =>
+            _bodyEditors.Select(e => e.Document).ToList();
+
+        /// <summary>
+        /// Caret position of the focused page editor as (pageIndex, sourceOrdinal, offsetInSlice).
+        /// Returns null when no page editor has focus.
+        /// </summary>
+        internal (int Page, int Ordinal, int Offset)? GetCaretInfo()
+        {
+            if (Keyboard.FocusedElement is not RichTextBox rtb) return null;
+            var page = _bodyEditors.IndexOf(rtb);
+            if (page < 0 || rtb.CaretPosition?.Paragraph is not { } para) return (page, -1, 0);
+            var ordinal = EditorTags.GetSourceOrdinal(para);
+            var offset = para.ContentStart.GetOffsetToPosition(rtb.CaretPosition);
+            return (page, ordinal, offset);
+        }
+
+        /// <summary>Restore caret to a source ordinal after rebuild (searches all pages).</summary>
+        internal void SetCaret(int page, int ordinal, int offset)
+        {
+            // Prefer the recorded page, then scan the rest — repagination may move it.
+            for (var i = 0; i < _bodyEditors.Count; i++)
+            {
+                var idx = (page + i) % _bodyEditors.Count;
+                var rtb = _bodyEditors[idx];
+                foreach (var para in BlockTree.AllParagraphs(rtb.Document))
+                {
+                    if (EditorTags.GetSourceOrdinal(para) != ordinal) continue;
+                    var len = para.ContentStart.GetOffsetToPosition(para.ContentEnd);
+                    var pos = para.ContentStart.GetPositionAtOffset(Math.Min(offset, len));
+                    if (pos is not null)
+                    {
+                        rtb.CaretPosition = pos;
+                        rtb.Focus();
+                        para.BringIntoView();
+                    }
+                    return;
+                }
+            }
+        }
+
+        private UIElement BuildPage(
+            PageModel page, int pageCount, int index,
+            IReadOnlyDictionary<Paragraph, int> ordinals)
         {
             var border = new Border
             {
@@ -55,7 +110,6 @@ namespace WriterForge.Editor.Controls
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });   // footnotes
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });   // footer
 
-            // Header
             var header = new TextBlock
             {
                 Text = page.Header ?? "",
@@ -67,19 +121,43 @@ namespace WriterForge.Editor.Controls
             Grid.SetRow(header, 0);
             grid.Children.Add(header);
 
-            // Body
-            var bodyHost = new FlowDocumentScrollViewer
+            var sliceDoc = _source is null
+                ? new FlowDocument()
+                : PageSlicer.SliceBody(page, _source, ordinals);
+
+            FrameworkElement bodyHost;
+            if (_editable)
             {
-                Document = _source is null ? new FlowDocument() : PageSlicer.SliceBody(page, _source),
-                VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                Focusable = false,
-                Background = Brushes.Transparent,
-            };
+                var rtb = new RichTextBox
+                {
+                    Document = sliceDoc,
+                    Padding = new Thickness(0),
+                    BorderThickness = new Thickness(0),
+                    Background = Brushes.Transparent,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                    FontFamily = new FontFamily("Georgia"),
+                    FontSize = 14,
+                    AcceptsReturn = true,
+                };
+                rtb.TextChanged += (_, _) => PagesEdited?.Invoke(this, EventArgs.Empty);
+                _bodyEditors.Add(rtb);
+                bodyHost = rtb;
+            }
+            else
+            {
+                bodyHost = new FlowDocumentScrollViewer
+                {
+                    Document = sliceDoc,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                    Focusable = false,
+                    Background = Brushes.Transparent,
+                };
+            }
             Grid.SetRow(bodyHost, 1);
             grid.Children.Add(bodyHost);
 
-            // Footnotes
             if (page.Footnotes.Count > 0 && _source is not null)
             {
                 var notesHost = new StackPanel();
@@ -102,7 +180,6 @@ namespace WriterForge.Editor.Controls
                 grid.Children.Add(notesHost);
             }
 
-            // Footer
             var footerText = page.Footer is { Length: > 0 } f
                 ? $"{f}    —    Page {index + 1} of {pageCount}"
                 : $"Page {index + 1} of {pageCount}";

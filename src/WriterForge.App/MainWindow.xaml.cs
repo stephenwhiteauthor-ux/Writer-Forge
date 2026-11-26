@@ -35,6 +35,7 @@ public partial class MainWindow : RibbonWindow
         Editor.DirtyChanged += (_, _) => UpdateTitle();
         Editor.ToolbarStateChanged += (_, s) => ApplyEditorState(s);
         Editor.ParagraphStylesChanged += (_, _) => PopulateStyleBox();
+        Editor.OutlineViewChanged += on => { if (!on) OutlineToggle.IsChecked = false; };
         PopulateStyleBox();
         UpdateTitle();
         ApplySettings();
@@ -445,9 +446,14 @@ public partial class MainWindow : RibbonWindow
     private void PageCount_Click(object sender, RoutedEventArgs e) =>
         MessageBox.Show(Editor.GetPaginationDebug(), "Pagination", MessageBoxButton.OK, MessageBoxImage.Information);
 
-    private void PageViewToggle_Click(object sender, RoutedEventArgs e)
+    private void PrintLayoutToggle_Click(object sender, RoutedEventArgs e)
     {
-        var on = PageViewToggle.IsChecked == true;
+        var on = PrintLayoutToggle.IsChecked == true;
+        if (on)
+        {
+            OutlineToggle.IsChecked = false;
+            Editor.SetOutlineView(false);
+        }
         Editor.SetPageView(on);
         if (!on && ReadModeToggle.IsChecked == true)
         {
@@ -460,8 +466,26 @@ public partial class MainWindow : RibbonWindow
     {
         var on = ReadModeToggle.IsChecked == true;
         MainRibbon.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+        if (on)
+        {
+            OutlineToggle.IsChecked = false;
+            Editor.SetOutlineView(false);
+        }
         Editor.SetPageView(on);
-        PageViewToggle.IsChecked = on;
+        PrintLayoutToggle.IsChecked = on;
+    }
+
+    private void OutlineToggle_Click(object sender, RoutedEventArgs e)
+    {
+        var on = OutlineToggle.IsChecked == true;
+        if (on)
+        {
+            PrintLayoutToggle.IsChecked = false;
+            ReadModeToggle.IsChecked = false;
+            MainRibbon.Visibility = Visibility.Visible;
+            Editor.SetPageView(false);
+        }
+        Editor.SetOutlineView(on);
     }
 
     private void NavPaneToggle_Click(object sender, RoutedEventArgs e) =>

@@ -32,6 +32,14 @@ namespace WriterForge.Editor.Controls
 
         private readonly DispatcherTimer _proofTimer;
         private readonly DispatcherTimer _pageTimer;
+        private readonly DispatcherTimer _pageEditTimer;
+        private bool _pageViewEditable;
+        private bool _previewRebuilding;
+        private bool _outlineView;
+        private readonly HashSet<Paragraph> _outlineCollapsed = new();
+
+        /// <summary>Raised when outline view is toggled (for ribbon sync).</summary>
+        public event Action<bool>? OutlineViewChanged;
         private readonly HashSet<string> _knownWords = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _unknownWords = new(StringComparer.OrdinalIgnoreCase);
         private string? _proofText;
@@ -77,6 +85,15 @@ namespace WriterForge.Editor.Controls
             _pageTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
             _pageTimer.Tick += (_, _) => { _pageTimer.Stop(); UpdatePageCount(); };
             Ruler.SizeChanged += (_, _) => { if (_ruler) DrawRuler(); };
+
+            _pageEditTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
+            _pageEditTimer.Tick += (_, _) => { _pageEditTimer.Stop(); FlushPageEdits(); };
+            PagePreview.PagesEdited += (_, _) =>
+            {
+                if (_previewRebuilding) return;
+                _pageEditTimer.Stop();
+                _pageEditTimer.Start();
+            };
         }
 
         /// <summary>Access to the underlying document for services (spell check, stats, export).</summary>
@@ -257,14 +274,32 @@ namespace WriterForge.Editor.Controls
         public void SetPageView(bool on)
         {
             _pageView = on;
-            Document.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
-            PagePreview.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
-            Ruler.Visibility = on || !_ruler ? Visibility.Collapsed : Visibility.Visible;
+            // Editable page view requires every block to be paginatable;
+            // tables aren't measured yet, so they fall back to read-only.
+            _pageViewEditable = on && !AllTables(Document.Document.Blocks).Any();
+            Document.Visibility = (on || _outlineView) ? Visibility.Collapsed : Visibility.Visible;
+            PagePreview.Visibility = on && !_outlineView ? Visibility.Visible : Visibility.Collapsed;
+            Ruler.Visibility = (on || _outlineView) || !_ruler ? Visibility.Collapsed : Visibility.Visible;
             if (on) UpdatePageCount();
-            else if (_ruler) DrawRuler();
+            else if (_ruler && !_outlineView) DrawRuler();
         }
 
         public bool IsPageView => _pageView;
+
+        /// <summary>Show the document as a heading outline for restructuring.</summary>
+        public void SetOutlineView(bool on)
+        {
+            _outlineView = on;
+            OutlinePane.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            Document.Visibility = (on || _pageView) ? Visibility.Collapsed : Visibility.Visible;
+            PagePreview.Visibility = _pageView && !on ? Visibility.Visible : Visibility.Collapsed;
+            Ruler.Visibility = (on || _pageView) || !_ruler ? Visibility.Collapsed : Visibility.Visible;
+            OutlineViewChanged?.Invoke(on);
+            if (on) RefreshOutline();
+            else if (_ruler && !_pageView) DrawRuler();
+        }
+
+        public bool IsOutlineView => _outlineView;
 
         /// <summary>Recompute the live page count (debounced; engine is too heavy per keystroke).</summary>
         private void UpdatePageCount()
@@ -274,8 +309,23 @@ namespace WriterForge.Editor.Controls
                 var pages = PaginationEngine.Paginate(Document.Document, Metadata.Header, Metadata.Footer);
                 var footnotes = pages.Sum(p => p.Footnotes.Count);
                 PageCountText.Text = $"Pages: {pages.Count}" + (footnotes > 0 ? $"    Notes: {footnotes}" : "");
-                if (_pageView) PagePreview.ShowPages(pages, Document.Document);
+                if (_pageView)
+                {
+                    var ordinals = BlockTree.AllParagraphs(Document.Document)
+                        .Select((p, i) => (p, i))
+                        .ToDictionary(x => x.p, x => x.i);
+                    _previewRebuilding = true;
+                    try
+                    {
+                        PagePreview.ShowPages(pages, Document.Document, ordinals, _pageViewEditable);
+                    }
+                    finally
+                    {
+                        _previewRebuilding = false;
+                    }
+                }
                 if (_navPane) RefreshNav();
+                if (_outlineView) RefreshOutline();
                 if (_ruler) DrawRuler();
                 if (_gridlines) ApplyGridlines();
             }
@@ -285,18 +335,226 @@ namespace WriterForge.Editor.Controls
             }
         }
 
+        /// <summary>Merge edited page slices back into the master document and re-paginate.</summary>
+        private void FlushPageEdits()
+        {
+            if (!_pageView || !_pageViewEditable) return;
+            var caret = PagePreview.GetCaretInfo();
+            var merged = PageMerger.Merge(PagePreview.GetPageDocuments(), Document.Document);
+
+            _suspendDirty = true;
+            try
+            {
+                Document.Document = merged;
+            }
+            finally
+            {
+                _suspendDirty = false;
+            }
+            SetDirty(true);
+            UpdatePageCount();
+            if (caret is { Ordinal: >= 0 } c) PagePreview.SetCaret(c.Page, c.Ordinal, c.Offset);
+        }
+
+        // ---------- Outline view ----------
+
+        /// <summary>Outline level: 1–3 for headings, 4 for body/other paragraphs.</summary>
+        private static int OutlineLevel(Paragraph para) =>
+            StyleKeys.HeadingLevel(EditorTags.GetStyleKey(para)) is > 0 and var h ? h : 4;
+
+        private Paragraph? SelectedOutlineParagraph() =>
+            OutlineList.SelectedItem is ListBoxItem { Tag: Paragraph p } ? p : null;
+
+        private void RefreshOutline()
+        {
+            var paras = BlockTree.AllParagraphs(Document.Document)
+                .Where(p => !StyleKeys.IsNoteStyle(EditorTags.GetStyleKey(p)))
+                .ToList();
+            _outlineCollapsed.IntersectWith(paras);
+
+            // A heading "has children" if the next paragraph sits deeper.
+            var hasKids = new HashSet<Paragraph>();
+            for (var i = 0; i + 1 < paras.Count; i++)
+            {
+                var level = OutlineLevel(paras[i]);
+                if (level <= 3 && OutlineLevel(paras[i + 1]) > level)
+                    hasKids.Add(paras[i]);
+            }
+
+            var stack = new List<(int Level, bool Collapsed)>();
+            {
+                OutlineList.Items.Clear();
+                foreach (var para in paras)
+                {
+                    var level = OutlineLevel(para);
+                    bool hidden;
+                    if (level <= 3)
+                    {
+                        while (stack.Count > 0 && stack[^1].Level >= level)
+                            stack.RemoveAt(stack.Count - 1);
+                        hidden = stack.Any(s => s.Collapsed);
+                        stack.Add((level, _outlineCollapsed.Contains(para)));
+                    }
+                    else
+                    {
+                        hidden = stack.Any(s => s.Collapsed);
+                    }
+                    if (hidden) continue;
+
+                    var text = PlainText(para).Trim();
+                    if (text.Length == 0) text = " ";
+                    if (text.Length > 90) text = text[..90] + "…";
+
+                    var row = new StackPanel { Orientation = Orientation.Horizontal };
+                    var kids = level <= 3 && hasKids.Contains(para);
+                    var collapsed = _outlineCollapsed.Contains(para);
+                    var toggle = new Button
+                    {
+                        Content = kids ? (collapsed ? "+" : "−") : " ",
+                        Padding = new Thickness(2, 0, 4, 0),
+                        BorderThickness = new Thickness(0),
+                        Background = Brushes.Transparent,
+                        FontWeight = FontWeights.Bold,
+                        MinWidth = 18,
+                        IsEnabled = kids,
+                        Tag = para,
+                        ToolTip = collapsed ? "Expand" : "Collapse",
+                    };
+                    toggle.Click += OutlineCollapse_Click;
+                    row.Children.Add(toggle);
+                    row.Children.Add(new TextBlock
+                    {
+                        Text = level <= 3 ? $"L{level}" : "Body",
+                        Width = 36,
+                        FontSize = 10,
+                        Foreground = Brushes.Gray,
+                        VerticalAlignment = VerticalAlignment.Center,
+                    });
+                    row.Children.Add(new TextBlock
+                    {
+                        Text = text,
+                        FontWeight = level <= 3 ? FontWeights.SemiBold : FontWeights.Normal,
+                        FontStyle = level <= 3 ? FontStyles.Normal : FontStyles.Italic,
+                        Foreground = level <= 3 ? Brushes.Black : Brushes.Gray,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                    });
+
+                    OutlineList.Items.Add(new ListBoxItem
+                    {
+                        Content = row,
+                        Tag = para,
+                        Padding = new Thickness(level <= 3 ? (level - 1) * 24 + 22 : 94, 3, 8, 3),
+                    });
+                }
+            }
+        }
+
+        private void OutlineCollapse_Click(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (sender is Button { Tag: Paragraph para })
+            {
+                if (!_outlineCollapsed.Remove(para)) _outlineCollapsed.Add(para);
+                RefreshOutline();
+            }
+        }
+
+        private void OutlineList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (SelectedOutlineParagraph() is { } para)
+            {
+                Document.CaretPosition = para.ContentStart;
+                para.BringIntoView();
+                SetOutlineView(false);
+            }
+        }
+
+        /// <summary>Promote: heading/body moves one level toward Heading 1.</summary>
+        private void OutlinePromote_Click(object sender, RoutedEventArgs e) => OutlineAdjustLevel(-1);
+
+        /// <summary>Demote: heading/body moves one level toward body text.</summary>
+        private void OutlineDemote_Click(object sender, RoutedEventArgs e) => OutlineAdjustLevel(1);
+
+        private void OutlineAdjustLevel(int delta)
+        {
+            if (SelectedOutlineParagraph() is not { } para) return;
+            var level = OutlineLevel(para);
+            var target = Math.Clamp(level + delta, 1, 4);
+            if (target == level) return;
+
+            var key = target >= 4 ? "StyleNormal" : StyleKeys.KeyForLevel(target);
+            if (key is null) return;
+            if (FindResource(key) is Style style) para.Style = style;
+            EditorTags.SetStyleKey(para, key);
+            SetDirty(true);
+            RefreshOutline();
+            UpdatePageCount();
+        }
+
+        private void OutlineMoveUp_Click(object sender, RoutedEventArgs e) => OutlineMove(true);
+        private void OutlineMoveDown_Click(object sender, RoutedEventArgs e) => OutlineMove(false);
+
+        /// <summary>
+        /// Move the selected paragraph — or, for a heading, its whole section
+        /// (everything until the next heading of same-or-higher level) —
+        /// within its parent block collection.
+        /// </summary>
+        private void OutlineMove(bool up)
+        {
+            if (SelectedOutlineParagraph() is not { } para) return;
+            if (ParentBlocksOf(para) is not { } parent) return;
+            var siblings = parent.Cast<Block>().ToList();
+            var index = siblings.IndexOf(para);
+            if (index < 0) return;
+
+            var level = StyleKeys.HeadingLevel(EditorTags.GetStyleKey(para));
+            var start = index;
+            var end = index;
+            if (level > 0)
+            {
+                while (end + 1 < siblings.Count &&
+                       siblings[end + 1] is Paragraph next &&
+                       StyleKeys.HeadingLevel(EditorTags.GetStyleKey(next)) is var nl &&
+                       (nl == 0 || nl > level))
+                    end++;
+            }
+
+            var range = siblings.Skip(start).Take(end - start + 1).ToList();
+            Block? insertBefore = null;
+            if (up)
+            {
+                if (start == 0) return;
+                insertBefore = siblings[start - 1];
+            }
+            else
+            {
+                if (end == siblings.Count - 1) return;
+                insertBefore = end + 2 < siblings.Count ? siblings[end + 2] : null;
+            }
+
+            foreach (var b in range) parent.Remove(b);
+            if (insertBefore is not null)
+                foreach (var b in range) parent.InsertBefore(insertBefore, b);
+            else
+                foreach (var b in range) parent.Add(b);
+
+            SetDirty(true);
+            RefreshOutline();
+            UpdatePageCount();
+        }
+
         // ---------- Navigation pane ----------
 
         private void RefreshNav()
         {
             var headings = BlockTree.AllParagraphs(Document.Document)
-                .Select(p => (Para: p, Key: EditorTags.GetStyleKey(p)))
-                .Where(x => x.Key is "Heading1" or "Heading2" or "Heading3")
+                .Select(p => (Para: p, Level: StyleKeys.HeadingLevel(EditorTags.GetStyleKey(p))))
+                .Where(x => x.Level > 0)
                 .Select(x =>
                 {
                     var text = string.Concat(DocumentTextMap.EnumerateRuns(x.Para.Inlines).Select(r => r.Text)).Trim();
-                    var level = x.Key == "Heading1" ? 0 : x.Key == "Heading2" ? 1 : 2;
-                    return (Text: text, Para: x.Para, Level: level);
+                    return (Text: text, Para: x.Para, Level: x.Level - 1);
                 })
                 .Where(x => x.Text.Length > 0)
                 .ToList();
@@ -1593,8 +1851,8 @@ namespace WriterForge.Editor.Controls
         public int InsertToc()
         {
             var headings = BlockTree.AllParagraphs(Document.Document)
-                .Select(p => (Para: p, Key: EditorTags.GetStyleKey(p), Text: PlainText(p).Trim()))
-                .Where(x => x.Key is "Heading1" or "Heading2" or "Heading3" && x.Text.Length > 0)
+                .Select(p => (Para: p, Level: StyleKeys.HeadingLevel(EditorTags.GetStyleKey(p)), Text: PlainText(p).Trim()))
+                .Where(x => x.Level > 0 && x.Text.Length > 0)
                 .ToList();
             if (headings.Count == 0) return 0;
 
@@ -1604,7 +1862,7 @@ namespace WriterForge.Editor.Controls
             };
             foreach (var h in headings)
             {
-                var level = h.Key == "Heading1" ? 0 : h.Key == "Heading2" ? 1 : 2;
+                var level = h.Level - 1;
                 var para = new Paragraph(new Run(h.Text));
                 para.Margin = new Thickness(level * 24, 2, 0, 2);
                 blocks.Add(para);

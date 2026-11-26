@@ -76,6 +76,8 @@ public static class PdfExportService
             {
                 case WF.Paragraph para:
                     var styleKey = EditorTags.GetStyleKey(para) ?? "Normal";
+                    var level = StyleKeys.HeadingLevel(styleKey);
+                    if (level > 0) styleKey = $"Heading{level}";
                     var (bold, italic) = ParaFlags(para);
                     entries.Add(new Entry(styleKey, ExtractText(para), bold, italic));
                     break;

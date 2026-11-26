@@ -86,6 +86,27 @@
                         </FlowDocument>
                     </RichTextBox>
                     <local:PagedPreview x:Name="PagePreview" Visibility="Collapsed"/>
+                    <Border x:Name="OutlinePane" Visibility="Collapsed" Background="White">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Background="#FFF3F3F3"
+                                    BorderBrush="#FFDDDDDD" BorderThickness="0,0,0,1" Padding="8,4">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="Promote" Padding="10,2" Margin="0,0,6,0"
+                                            Click="OutlinePromote_Click" ToolTip="Move up one level (Alt+Shift+Left)"/>
+                                    <Button Content="Demote" Padding="10,2" Margin="0,0,12,0"
+                                            Click="OutlineDemote_Click" ToolTip="Move down one level (Alt+Shift+Right)"/>
+                                    <Button Content="Move Up" Padding="10,2" Margin="0,0,6,0"
+                                            Click="OutlineMoveUp_Click" ToolTip="Move section up"/>
+                                    <Button Content="Move Down" Padding="10,2" Margin="0,0,12,0"
+                                            Click="OutlineMoveDown_Click" ToolTip="Move section down"/>
+                                    <TextBlock Text="Double-click an entry to edit it" Foreground="Gray"
+                                               VerticalAlignment="Center" FontSize="11"/>
+                                </StackPanel>
+                            </Border>
+                            <ListBox x:Name="OutlineList" BorderThickness="0" Background="Transparent"
+                                     MouseDoubleClick="OutlineList_MouseDoubleClick"/>
+                        </DockPanel>
+                    </Border>
                 </Grid>
             </Grid>
         </Grid>

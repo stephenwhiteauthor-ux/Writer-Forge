@@ -37,6 +37,24 @@ namespace WriterForge.Editor.Services
 
         public static int GetFootnoteId(DependencyObject element) =>
             element.GetValue(FootnoteIdProperty) is int id ? id : 0;
+
+        /// <summary>
+        /// Attached property marking a page-view slice paragraph with the ordinal
+        /// of its source paragraph (index into BlockTree.AllParagraphs order).
+        /// Used to merge edited page slices back into the master document.
+        /// </summary>
+        public static readonly DependencyProperty SourceOrdinalProperty =
+            DependencyProperty.RegisterAttached(
+                "SourceOrdinal",
+                typeof(int),
+                typeof(EditorTags),
+                new FrameworkPropertyMetadata(-1));
+
+        public static void SetSourceOrdinal(DependencyObject element, int value) =>
+            element.SetValue(SourceOrdinalProperty, value);
+
+        public static int GetSourceOrdinal(DependencyObject element) =>
+            element.GetValue(SourceOrdinalProperty) is int id ? id : -1;
     }
 
     /// <summary>Shared brushes/decoration helpers for spell and grammar proof underlines.</summary>

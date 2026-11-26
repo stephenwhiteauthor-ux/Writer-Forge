@@ -5,12 +5,14 @@ namespace WriterForge.Editor.Services
 {
     /// <summary>
     /// Builds per-page FlowDocuments from <see cref="PageModel"/> line ranges,
-    /// so each page can be rendered by a read-only WPF document viewer.
+    /// so each page can be rendered by a document viewer. Slice paragraphs are
+    /// stamped with their source paragraph ordinal for edit merge-back.
     /// </summary>
     internal static class PageSlicer
     {
         /// <summary>Document containing the body-text slices that fall on this page.</summary>
-        public static FlowDocument SliceBody(PageModel page, FlowDocument source)
+        public static FlowDocument SliceBody(
+            PageModel page, FlowDocument source, IReadOnlyDictionary<Paragraph, int> ordinals)
         {
             var doc = new FlowDocument { PagePadding = new Thickness(0) };
 
@@ -26,6 +28,8 @@ namespace WriterForge.Editor.Services
                 var copy = start <= 0 && sliceEnd >= textLen
                     ? DocumentCopier.Copy(current)
                     : DocumentCopier.SliceParagraph(current, start, sliceEnd);
+                if (ordinals.TryGetValue(current, out var ordinal))
+                    EditorTags.SetSourceOrdinal(copy, ordinal);
                 doc.Blocks.Add(copy);
             }
 
