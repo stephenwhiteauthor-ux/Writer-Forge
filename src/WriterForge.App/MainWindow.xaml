@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WriterForge.App"
         xmlns:editor="clr-namespace:WriterForge.Editor.Controls;assembly=WriterForge.Editor"
-        xmlns:ribbon="clr-namespace:System.Windows.Controls.Ribbon;assembly=PresentationFramework"
+        xmlns:ribbon="clr-namespace:System.Windows.Controls.Ribbon;assembly=System.Windows.Controls.Ribbon"
         mc:Ignorable="d"
         Title="WriterForge" Height="700" Width="1100"
         WindowStartupLocation="CenterScreen">
@@ -38,31 +38,30 @@
         <CommandBinding Command="SelectAll" Executed="SelectAll_Executed" CanExecute="EditCommand_CanExecute"/>
     </Window.CommandBindings>
 
-    <DockPanel>
-        <Ribbon DockPanel.Dock="Top" x:Name="MainRibbon">
-            <Ribbon.QuickAccessToolBar>
-                <RibbonQuickAccessToolBar>
-                    <RibbonButton Label="New" ToolTip="New document (Ctrl+N)" Command="{x:Static local:MainWindow.NewDocumentCommand}"/>
-                    <RibbonButton Label="Open" ToolTip="Open document (Ctrl+O)" Command="{x:Static local:MainWindow.OpenDocumentCommand}"/>
-                    <RibbonButton Label="Save" ToolTip="Save (Ctrl+S)" Command="{x:Static local:MainWindow.SaveDocumentCommand}"/>
-                </RibbonQuickAccessToolBar>
-            </Ribbon.QuickAccessToolBar>
+    <Window.Resources>
+        <!-- The ribbon renders a default application-menu button even with no
+             ApplicationMenu set; File is a real tab, so hide it. -->
+        <Style TargetType="ribbon:RibbonApplicationMenu">
+            <Setter Property="Visibility" Value="Collapsed"/>
+        </Style>
+    </Window.Resources>
 
-            <Ribbon.ApplicationMenu>
-                <RibbonApplicationMenu>
-                    <RibbonApplicationMenuItem Header="_New" Command="{x:Static local:MainWindow.NewDocumentCommand}" InputGestureText="Ctrl+N"/>
-                    <RibbonApplicationMenuItem Header="_Open..." Command="{x:Static local:MainWindow.OpenDocumentCommand}" InputGestureText="Ctrl+O"/>
-                    <RibbonApplicationMenuItem Header="_Save" Command="{x:Static local:MainWindow.SaveDocumentCommand}" InputGestureText="Ctrl+S"/>
-                    <RibbonApplicationMenuItem Header="Save _As..." Command="{x:Static local:MainWindow.SaveDocumentAsCommand}" InputGestureText="Ctrl+Shift+S"/>
-                    <RibbonApplicationMenuItem Header="Export as _PDF..." Click="ExportPdf_Click"/>
-                    <RibbonApplicationMenuItem Header="_Print..." Command="Print" InputGestureText="Ctrl+P"/>
-                    <RibbonApplicationMenuItem Header="Print Pre_view..." Command="PrintPreview"/>
-                    <RibbonApplicationMenuItem Header="E_xit" Click="Exit_Click"/>
-                </RibbonApplicationMenu>
-            </Ribbon.ApplicationMenu>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Ribbon Grid.Row="0" x:Name="MainRibbon" SelectionChanged="MainRibbon_SelectionChanged">
+            <!-- File tab: opens the backstage overlay (handled in code-behind) -->
+            <RibbonTab x:Name="FileTab" Header="File">
+                <RibbonGroup Header="File">
+                    <RibbonButton Label="File options" ToolTip="Open, save, export, print" Click="FileTab_Click"/>
+                </RibbonGroup>
+            </RibbonTab>
 
             <!-- ================= HOME ================= -->
-            <RibbonTab Header="Home">
+            <RibbonTab x:Name="HomeTab" Header="Home">
                 <RibbonGroup Header="Clipboard">
                     <RibbonButton x:Name="UndoBtn" Label="Undo" ToolTip="Undo (Ctrl+Z)" Click="RibbonUndo_Click"/>
                     <RibbonButton x:Name="RedoBtn" Label="Redo" ToolTip="Redo (Ctrl+Y)" Click="RibbonRedo_Click"/>
@@ -206,6 +205,59 @@
             </RibbonTab>
         </Ribbon>
 
-        <editor:EditorControl x:Name="Editor"/>
-    </DockPanel>
+        <editor:EditorControl Grid.Row="1" x:Name="Editor"/>
+
+        <!-- Word-style backstage: covers ribbon + editor when File tab is chosen -->
+        <Border x:Name="BackstagePanel" Grid.Row="0" Grid.RowSpan="2"
+                Visibility="Collapsed" Background="#FFF3F3F3">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="240"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Background="#FFE1DFDD">
+                    <StackPanel Margin="10,16">
+                        <Button Content="←  Home" FontSize="15" FontWeight="SemiBold"
+                                Padding="12,8" Margin="0,0,0,18" HorizontalContentAlignment="Left"
+                                Background="Transparent" BorderThickness="0" Click="BackstageHome_Click"/>
+                        <Separator Margin="0,0,0,10"/>
+                        <Button Content="New" Padding="12,9" Margin="0,1" HorizontalContentAlignment="Left"
+                                Background="Transparent" BorderThickness="0" Command="{x:Static local:MainWindow.NewDocumentCommand}"/>
+                        <Button Content="Open" Padding="12,9" Margin="0,1" HorizontalContentAlignment="Left"
+                                Background="Transparent" BorderThickness="0" Command="{x:Static local:MainWindow.OpenDocumentCommand}"/>
+                        <Button Content="Save" Padding="12,9" Margin="0,1" HorizontalContentAlignment="Left"
+                                Background="Transparent" BorderThickness="0" Command="{x:Static local:MainWindow.SaveDocumentCommand}"/>
+                        <Button Content="Save As" Padding="12,9" Margin="0,1" HorizontalContentAlignment="Left"
+                                Background="Transparent" BorderThickness="0" Command="{x:Static local:MainWindow.SaveDocumentAsCommand}"/>
+                        <Separator Margin="0,10"/>
+                        <Button Content="Export as PDF" Padding="12,9" Margin="0,1" HorizontalContentAlignment="Left"
+                                Background="Transparent" BorderThickness="0" Click="ExportPdf_Click"/>
+                        <Button Content="Print" Padding="12,9" Margin="0,1" HorizontalContentAlignment="Left"
+                                Background="Transparent" BorderThickness="0" Command="Print"/>
+                        <Button Content="Print Preview" Padding="12,9" Margin="0,1" HorizontalContentAlignment="Left"
+                                Background="Transparent" BorderThickness="0" Command="PrintPreview"/>
+                        <Button Content="Page Setup" Padding="12,9" Margin="0,1" HorizontalContentAlignment="Left"
+                                Background="Transparent" BorderThickness="0" Click="PageSetup_Click"/>
+                        <Separator Margin="0,10"/>
+                        <Button Content="Exit" Padding="12,9" Margin="0,1" HorizontalContentAlignment="Left"
+                                Background="Transparent" BorderThickness="0" Click="Exit_Click"/>
+                    </StackPanel>
+                </Border>
+
+                <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="48,36" MaxWidth="560">
+                        <TextBlock Text="Info" FontSize="30" FontWeight="Light" Foreground="#FF323130"/>
+                        <Separator Margin="0,14,0,22"/>
+                        <TextBlock Text="Document" FontSize="13" FontWeight="SemiBold" Foreground="#FF605E5C"/>
+                        <TextBlock x:Name="BsFileName" FontSize="20" Margin="0,4,0,2"/>
+                        <TextBlock x:Name="BsFilePath" FontSize="12" Foreground="#FF605E5C" TextWrapping="Wrap"/>
+                        <Separator Margin="0,20,0,16"/>
+                        <TextBlock Text="Statistics" FontSize="13" FontWeight="SemiBold" Foreground="#FF605E5C"/>
+                        <TextBlock x:Name="BsStats" FontSize="15" Margin="0,6,0,0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </Grid>
 </Window>

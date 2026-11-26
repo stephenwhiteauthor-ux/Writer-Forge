@@ -39,9 +39,54 @@ public partial class MainWindow : Window
         UpdateTitle();
         ApplySettings();
 
+        // The ribbon renders a default (empty) application-menu button; File is
+        // a real tab now, so suppress it.
+        MainRibbon.ApplicationMenu = null;
+
+        // Start on the Home tab; the File tab opens the backstage overlay.
+        Loaded += (_, _) =>
+        {
+            MainRibbon.SelectedItem = HomeTab;
+            _backstageArmed = true;
+        };
+
         _autosaveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _autosaveTimer.Tick += Autosave_Tick;
         _autosaveTimer.Start();
+    }
+
+    // ---------- Backstage (File tab) ----------
+
+    private bool _backstageArmed;
+
+    private void MainRibbon_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_backstageArmed || FileTab is null) return;
+        if (FileTab.IsSelected) OpenBackstage();
+    }
+
+    private void OpenBackstage()
+    {
+        RefreshBackstageInfo();
+        BackstagePanel.Visibility = Visibility.Visible;
+    }
+
+    private void CloseBackstage()
+    {
+        if (BackstagePanel.Visibility != Visibility.Visible) return;
+        BackstagePanel.Visibility = Visibility.Collapsed;
+        MainRibbon.SelectedItem = HomeTab;
+    }
+
+    private void BackstageHome_Click(object sender, RoutedEventArgs e) => CloseBackstage();
+
+    private void FileTab_Click(object sender, RoutedEventArgs e) => OpenBackstage();
+
+    private void RefreshBackstageInfo()
+    {
+        BsFileName.Text = _filePath is null ? "Untitled" : Path.GetFileName(_filePath);
+        BsFilePath.Text = _filePath ?? "Not saved yet";
+        BsStats.Text = $"Words: {Editor.WordCount}    {(Editor.IsDirty ? "Unsaved changes" : "All changes saved")}";
     }
 
     // ---------- Ribbon: state sync ----------
@@ -177,9 +222,12 @@ public partial class MainWindow : Window
         if (_filePath is null)
         {
             Title = Editor.IsDirty ? "WriterForge *" : "WriterForge";
-            return;
         }
-        Title = $"{Path.GetFileName(_filePath)}{(Editor.IsDirty ? "*" : "")} — WriterForge";
+        else
+        {
+            Title = $"{Path.GetFileName(_filePath)}{(Editor.IsDirty ? "*" : "")} — WriterForge";
+        }
+        RefreshBackstageInfo();
     }
 
     private bool ConfirmDiscard()
@@ -215,6 +263,7 @@ public partial class MainWindow : Window
         if (!ConfirmDiscard()) return;
         Editor.NewDocument();
         _filePath = null;
+        CloseBackstage();
         UpdateTitle();
     }
 
@@ -239,6 +288,7 @@ public partial class MainWindow : Window
             MessageBox.Show($"Could not open the file:\n{ex.Message}", "WriterForge", MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
+        CloseBackstage();
         UpdateTitle();
     }
 
