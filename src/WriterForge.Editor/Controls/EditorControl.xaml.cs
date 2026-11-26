@@ -202,8 +202,7 @@ namespace WriterForge.Editor.Controls
             var text = new TextRange(Document.Document.ContentStart, Document.Document.ContentEnd).Text;
             var words = WordPattern.Matches(text).Count;
             var chars = text.TrimEnd('\r', '\n').Length;
-            var charsNoSpaces = text.Count(c => !char.IsWhiteSpace(c));
-            StatusText.Text = $"Words: {words}    Characters: {chars} (no spaces: {charsNoSpaces})    Paragraphs: {CountParagraphs()}";
+            StatusText.Text = $"Words: {words}    Characters: {chars}    Paragraphs: {CountParagraphs()}";
             PlaceholderText.Visibility = string.IsNullOrWhiteSpace(text)
                 ? Visibility.Visible
                 : Visibility.Collapsed;
