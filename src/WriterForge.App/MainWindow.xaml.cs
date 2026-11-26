@@ -442,6 +442,9 @@ public partial class MainWindow : RibbonWindow
         new ProjectStatsWindow { Owner = this }.ShowDialog();
     }
 
+    private void PageCount_Click(object sender, RoutedEventArgs e) =>
+        MessageBox.Show(Editor.GetPaginationDebug(), "Pagination", MessageBoxButton.OK, MessageBoxImage.Information);
+
     private void InsertFootnote_Click(object sender, RoutedEventArgs e) => Editor.InsertFootnote();
     private void InsertEndnote_Click(object sender, RoutedEventArgs e) => Editor.InsertFootnote(endnote: true);
 

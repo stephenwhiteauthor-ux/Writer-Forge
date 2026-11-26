@@ -31,6 +31,7 @@ namespace WriterForge.Editor.Controls
         private static readonly Regex ProofWordPattern = new(@"[\p{L}][\p{L}'’\-]*", RegexOptions.Compiled);
 
         private readonly DispatcherTimer _proofTimer;
+        private readonly DispatcherTimer _pageTimer;
         private readonly HashSet<string> _knownWords = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _unknownWords = new(StringComparer.OrdinalIgnoreCase);
         private string? _proofText;
@@ -72,6 +73,9 @@ namespace WriterForge.Editor.Controls
 
             _proofTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
             _proofTimer.Tick += (_, _) => { _proofTimer.Stop(); RunProofing(); };
+
+            _pageTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
+            _pageTimer.Tick += (_, _) => { _pageTimer.Stop(); UpdatePageCount(); };
         }
 
         /// <summary>Access to the underlying document for services (spell check, stats, export).</summary>
@@ -197,10 +201,38 @@ namespace WriterForge.Editor.Controls
         {
             var text = new TextRange(Document.Document.ContentStart, Document.Document.ContentEnd).Text;
             var words = WordPattern.Matches(text).Count;
-            StatusText.Text = $"Words: {words}    Characters: {text.Length}    Paragraphs: {Document.Document.Blocks.Count}";
+            var chars = text.TrimEnd('\r', '\n').Length;
+            StatusText.Text = $"Words: {words}    Characters: {chars}    Paragraphs: {CountParagraphs()}";
             PlaceholderText.Visibility = string.IsNullOrWhiteSpace(text)
                 ? Visibility.Visible
                 : Visibility.Collapsed;
+            _pageTimer.Stop();
+            _pageTimer.Start();
+        }
+
+        /// <summary>Paragraph count for the status bar: all paragraphs minus a trailing empty one.</summary>
+        private int CountParagraphs()
+        {
+            var paras = BlockTree.AllParagraphs(Document.Document).ToList();
+            if (paras.Count == 0) return 0;
+            var last = paras[^1];
+            var lastEmpty = !DocumentTextMap.EnumerateRuns(last.Inlines).Any(r => r.Text.Trim().Length > 0);
+            return paras.Count - (lastEmpty ? 1 : 0);
+        }
+
+        /// <summary>Recompute the live page count (debounced; engine is too heavy per keystroke).</summary>
+        private void UpdatePageCount()
+        {
+            try
+            {
+                var pages = PaginationEngine.Paginate(Document.Document);
+                var footnotes = pages.Sum(p => p.Footnotes.Count);
+                PageCountText.Text = $"Pages: {pages.Count}" + (footnotes > 0 ? $"    Notes: {footnotes}" : "");
+            }
+            catch
+            {
+                PageCountText.Text = "";
+            }
         }
 
         // ---------- Toolbar sync ----------
@@ -774,6 +806,15 @@ namespace WriterForge.Editor.Controls
             Metadata.Header = string.IsNullOrWhiteSpace(header) ? null : header.Trim();
             Metadata.Footer = string.IsNullOrWhiteSpace(footer) ? null : footer.Trim();
             SetDirty(true);
+        }
+
+        /// <summary>Run the pagination engine; returns page/footnote counts for diagnostics.</summary>
+        public string GetPaginationDebug()
+        {
+            var pages = PaginationEngine.Paginate(Document.Document);
+            var footnotes = pages.Sum(p => p.Footnotes.Count);
+            var lines = pages.Sum(p => p.Lines.Count);
+            return $"Pages: {pages.Count}    Lines: {lines}    Page-footnotes: {footnotes}";
         }
 
         /// <summary>Run the writing-analysis pass over the document.</summary>

@@ -187,6 +187,7 @@
                     <RibbonButton Label="Writing Analysis..." ToolTip="Repeated words, passive voice, adverbs" Click="Analysis_Click"/>
                     <RibbonButton Label="Statistics" ToolTip="Document statistics" Click="Statistics_Click"/>
                     <RibbonButton Label="Writing Progress..." ToolTip="Daily word counts and targets" Click="Progress_Click"/>
+                    <RibbonButton Label="Page Count" ToolTip="Run pagination engine (debug)" Click="PageCount_Click"/>
                 </RibbonGroup>
                 <RibbonGroup Header="Typography">
                     <RibbonButton Label="Smart Quotes" Click="SmartQuotes_Click"/>
