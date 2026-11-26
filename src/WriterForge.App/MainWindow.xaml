@@ -1,19 +1,14 @@
-﻿<Window x:Class="WriterForge.App.MainWindow"
+<Window x:Class="WriterForge.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WriterForge.App"
         xmlns:editor="clr-namespace:WriterForge.Editor.Controls;assembly=WriterForge.Editor"
+        xmlns:ribbon="clr-namespace:System.Windows.Controls.Ribbon;assembly=PresentationFramework"
         mc:Ignorable="d"
-        Title="WriterForge" Height="700" Width="1000"
+        Title="WriterForge" Height="700" Width="1100"
         WindowStartupLocation="CenterScreen">
-
-    <Window.Resources>
-        <Style TargetType="MenuItem">
-            <Setter Property="Padding" Value="6,3"/>
-        </Style>
-    </Window.Resources>
 
     <Window.InputBindings>
         <KeyBinding Key="N" Modifiers="Control" Command="{x:Static local:MainWindow.NewDocumentCommand}"/>
@@ -44,50 +39,172 @@
     </Window.CommandBindings>
 
     <DockPanel>
-        <Menu DockPanel.Dock="Top">
-            <MenuItem Header="_File">
-                <MenuItem Header="_New" Command="{x:Static local:MainWindow.NewDocumentCommand}" InputGestureText="Ctrl+N"/>
-                <MenuItem Header="_Open..." Command="{x:Static local:MainWindow.OpenDocumentCommand}" InputGestureText="Ctrl+O"/>
-                <MenuItem Header="_Save" Command="{x:Static local:MainWindow.SaveDocumentCommand}" InputGestureText="Ctrl+S"/>
-                <MenuItem Header="Save _As..." Command="{x:Static local:MainWindow.SaveDocumentAsCommand}" InputGestureText="Ctrl+Shift+S"/>
-                <Separator/>
-                <MenuItem Header="Export as _PDF..." Click="ExportPdf_Click"/>
-                <Separator/>
-                <MenuItem Header="_Print..." Command="Print" InputGestureText="Ctrl+P"/>
-                <MenuItem Header="Print Pre_view..." Command="PrintPreview"/>
-                <MenuItem Header="Page Set_up..." Click="PageSetup_Click"/>
-                <MenuItem Header="E_xit" Click="Exit_Click"/>
-            </MenuItem>
-            <MenuItem Header="_Edit">
-                <MenuItem Header="_Undo" Command="Undo" InputGestureText="Ctrl+Z"/>
-                <MenuItem Header="_Redo" Command="Redo" InputGestureText="Ctrl+Y"/>
-                <Separator/>
-                <MenuItem Header="Cu_t" Command="Cut" InputGestureText="Ctrl+X"/>
-                <MenuItem Header="_Copy" Command="Copy" InputGestureText="Ctrl+C"/>
-                <MenuItem Header="_Paste" Command="Paste" InputGestureText="Ctrl+V"/>
-                <Separator/>
-                <MenuItem Header="Select _All" Command="SelectAll" InputGestureText="Ctrl+A"/>
-                <Separator/>
-                <MenuItem Header="_Find..." Command="{x:Static local:MainWindow.FindCommand}" InputGestureText="Ctrl+F"/>
-                <MenuItem Header="R_eplace..." Command="{x:Static local:MainWindow.ReplaceCommand}" InputGestureText="Ctrl+H"/>
-            </MenuItem>
-            <MenuItem Header="_Tools">
-                <MenuItem Header="Document _Statistics" Click="Statistics_Click"/>
-                <Separator/>
-                <MenuItem Header="_Smart Quotes" Click="SmartQuotes_Click"/>
-                <MenuItem Header="Normalise _Ellipsis" Click="Ellipsis_Click"/>
-                <MenuItem Header="Clean _Whitespace" Click="Whitespace_Click"/>
-                <MenuItem Header="Remove _Empty Paragraphs" Click="EmptyParagraphs_Click"/>
-                <Separator/>
-                <MenuItem Header="Run _All Typography Tools" Click="AllTypography_Click"/>
+        <Ribbon DockPanel.Dock="Top" x:Name="MainRibbon">
+            <Ribbon.QuickAccessToolBar>
+                <RibbonQuickAccessToolBar>
+                    <RibbonButton Label="New" ToolTip="New document (Ctrl+N)" Command="{x:Static local:MainWindow.NewDocumentCommand}"/>
+                    <RibbonButton Label="Open" ToolTip="Open document (Ctrl+O)" Command="{x:Static local:MainWindow.OpenDocumentCommand}"/>
+                    <RibbonButton Label="Save" ToolTip="Save (Ctrl+S)" Command="{x:Static local:MainWindow.SaveDocumentCommand}"/>
+                </RibbonQuickAccessToolBar>
+            </Ribbon.QuickAccessToolBar>
 
-                <Separator/>
-                <MenuItem Header="Macro _Recorder..." Click="MacroRecorder_Click"/>
-                <MenuItem Header="Writing _Analysis..." Click="Analysis_Click"/>
-                <Separator/>
-                <MenuItem Header="_Settings..." Click="Settings_Click"/>
-            </MenuItem>
-        </Menu>
+            <Ribbon.ApplicationMenu>
+                <RibbonApplicationMenu>
+                    <RibbonApplicationMenuItem Header="_New" Command="{x:Static local:MainWindow.NewDocumentCommand}" InputGestureText="Ctrl+N"/>
+                    <RibbonApplicationMenuItem Header="_Open..." Command="{x:Static local:MainWindow.OpenDocumentCommand}" InputGestureText="Ctrl+O"/>
+                    <RibbonApplicationMenuItem Header="_Save" Command="{x:Static local:MainWindow.SaveDocumentCommand}" InputGestureText="Ctrl+S"/>
+                    <RibbonApplicationMenuItem Header="Save _As..." Command="{x:Static local:MainWindow.SaveDocumentAsCommand}" InputGestureText="Ctrl+Shift+S"/>
+                    <RibbonApplicationMenuItem Header="Export as _PDF..." Click="ExportPdf_Click"/>
+                    <RibbonApplicationMenuItem Header="_Print..." Command="Print" InputGestureText="Ctrl+P"/>
+                    <RibbonApplicationMenuItem Header="Print Pre_view..." Command="PrintPreview"/>
+                    <RibbonApplicationMenuItem Header="E_xit" Click="Exit_Click"/>
+                </RibbonApplicationMenu>
+            </Ribbon.ApplicationMenu>
+
+            <!-- ================= HOME ================= -->
+            <RibbonTab Header="Home">
+                <RibbonGroup Header="Clipboard">
+                    <RibbonButton x:Name="UndoBtn" Label="Undo" ToolTip="Undo (Ctrl+Z)" Click="RibbonUndo_Click"/>
+                    <RibbonButton x:Name="RedoBtn" Label="Redo" ToolTip="Redo (Ctrl+Y)" Click="RibbonRedo_Click"/>
+                    <RibbonButton Label="Cut" ToolTip="Cut (Ctrl+X)" Command="Cut"/>
+                    <RibbonButton Label="Copy" ToolTip="Copy (Ctrl+C)" Command="Copy"/>
+                    <RibbonButton Label="Paste" ToolTip="Paste (Ctrl+V)" Command="Paste"/>
+                </RibbonGroup>
+
+                <RibbonGroup Header="Font">
+                    <ComboBox x:Name="FontBox" ToolTip="Font" Width="150" SelectionChanged="FontBox_SelectionChanged">
+                        <ComboBoxItem Content="Georgia" Tag="Georgia"/>
+                        <ComboBoxItem Content="Times New Roman" Tag="Times New Roman"/>
+                        <ComboBoxItem Content="Arial" Tag="Arial"/>
+                        <ComboBoxItem Content="Calibri" Tag="Calibri"/>
+                        <ComboBoxItem Content="Verdana" Tag="Verdana"/>
+                        <ComboBoxItem Content="Courier New" Tag="Courier New"/>
+                        <ComboBoxItem Content="Garamond" Tag="Garamond"/>
+                    </ComboBox>
+                    <ComboBox x:Name="SizeBox" ToolTip="Font size" Width="60" SelectionChanged="SizeBox_SelectionChanged">
+                        <ComboBoxItem Content="8" Tag="8"/>
+                        <ComboBoxItem Content="9" Tag="9"/>
+                        <ComboBoxItem Content="10" Tag="10"/>
+                        <ComboBoxItem Content="11" Tag="11"/>
+                        <ComboBoxItem Content="12" Tag="12"/>
+                        <ComboBoxItem Content="14" Tag="14"/>
+                        <ComboBoxItem Content="16" Tag="16"/>
+                        <ComboBoxItem Content="18" Tag="18"/>
+                        <ComboBoxItem Content="20" Tag="20"/>
+                        <ComboBoxItem Content="24" Tag="24"/>
+                        <ComboBoxItem Content="28" Tag="28"/>
+                        <ComboBoxItem Content="32" Tag="32"/>
+                        <ComboBoxItem Content="36" Tag="36"/>
+                        <ComboBoxItem Content="48" Tag="48"/>
+                        <ComboBoxItem Content="72" Tag="72"/>
+                    </ComboBox>
+                    <RibbonToggleButton x:Name="BoldToggle" Label="B" ToolTip="Bold (Ctrl+B)" FontWeight="Bold" Click="Bold_Click"/>
+                    <RibbonToggleButton x:Name="ItalicToggle" Label="I" ToolTip="Italic (Ctrl+I)" FontStyle="Italic" Click="Italic_Click"/>
+                    <RibbonToggleButton x:Name="UnderlineToggle" Label="U" ToolTip="Underline (Ctrl+U)" Click="Underline_Click"/>
+                    <RibbonToggleButton x:Name="StrikeToggle" Label="S" ToolTip="Strikethrough" Click="Strike_Click"/>
+                    <RibbonToggleButton x:Name="SubToggle" Label="x₂" ToolTip="Subscript" Click="Sub_Click"/>
+                    <RibbonToggleButton x:Name="SupToggle" Label="x²" ToolTip="Superscript" Click="Sup_Click"/>
+                    <RibbonButton x:Name="FontColorBtn" Label="A" ToolTip="Font colour" Click="FontColor_Click"/>
+                    <RibbonButton x:Name="HighlightBtn" Label="ab" ToolTip="Highlight colour" Click="Highlight_Click"/>
+                    <RibbonButton Label="Clear" ToolTip="Clear formatting" Click="ClearFormatting_Click"/>
+                </RibbonGroup>
+
+                <RibbonGroup Header="Paragraph">
+                    <ComboBox x:Name="StyleBox" ToolTip="Paragraph style" Width="130" SelectionChanged="StyleBox_SelectionChanged">
+                        <ComboBoxItem Content="Normal" Tag="StyleNormal"/>
+                        <ComboBoxItem Content="Heading 1" Tag="StyleHeading1"/>
+                        <ComboBoxItem Content="Heading 2" Tag="StyleHeading2"/>
+                        <ComboBoxItem Content="Heading 3" Tag="StyleHeading3"/>
+                        <ComboBoxItem Content="Quote" Tag="StyleQuote"/>
+                        <ComboBoxItem Content="Caption" Tag="StyleCaption"/>
+                    </ComboBox>
+                    <RibbonToggleButton x:Name="AlignLeftToggle" Label="Left" ToolTip="Align left" Click="AlignLeft_Click"/>
+                    <RibbonToggleButton x:Name="AlignCenterToggle" Label="Centre" ToolTip="Align centre" Click="AlignCenter_Click"/>
+                    <RibbonToggleButton x:Name="AlignRightToggle" Label="Right" ToolTip="Align right" Click="AlignRight_Click"/>
+                    <RibbonToggleButton x:Name="AlignJustifyToggle" Label="Justify" ToolTip="Justify" Click="AlignJustify_Click"/>
+                    <RibbonToggleButton x:Name="BulletsToggle" Label="• List" ToolTip="Bulleted list" Click="Bullets_Click"/>
+                    <RibbonToggleButton x:Name="NumbersToggle" Label="1. List" ToolTip="Numbered list" Click="Numbers_Click"/>
+                    <ComboBox x:Name="SpacingBox" ToolTip="Line spacing" Width="80" SelectionChanged="SpacingBox_SelectionChanged">
+                        <ComboBoxItem Content="Single" Tag="1" IsSelected="True"/>
+                        <ComboBoxItem Content="1.15" Tag="1.15"/>
+                        <ComboBoxItem Content="1.5" Tag="1.5"/>
+                        <ComboBoxItem Content="Double" Tag="2"/>
+                    </ComboBox>
+                    <ComboBox x:Name="BeforeBox" ToolTip="Space before paragraph" Width="75" SelectionChanged="BeforeBox_SelectionChanged">
+                        <ComboBoxItem Content="Auto" Tag="" IsSelected="True"/>
+                        <ComboBoxItem Content="0 pt" Tag="0"/>
+                        <ComboBoxItem Content="6 pt" Tag="6"/>
+                        <ComboBoxItem Content="12 pt" Tag="12"/>
+                        <ComboBoxItem Content="18 pt" Tag="18"/>
+                    </ComboBox>
+                    <ComboBox x:Name="AfterBox" ToolTip="Space after paragraph" Width="75" SelectionChanged="AfterBox_SelectionChanged">
+                        <ComboBoxItem Content="Auto" Tag="" IsSelected="True"/>
+                        <ComboBoxItem Content="0 pt" Tag="0"/>
+                        <ComboBoxItem Content="6 pt" Tag="6"/>
+                        <ComboBoxItem Content="12 pt" Tag="12"/>
+                        <ComboBoxItem Content="18 pt" Tag="18"/>
+                    </ComboBox>
+                    <RibbonButton Label="→|" ToolTip="Increase indent" Click="IndentRight_Click"/>
+                    <RibbonButton Label="←|" ToolTip="Decrease indent" Click="IndentLeft_Click"/>
+                </RibbonGroup>
+            </RibbonTab>
+
+            <!-- ================= INSERT ================= -->
+            <RibbonTab Header="Insert">
+                <RibbonGroup Header="Illustrations">
+                    <RibbonButton Label="Picture" ToolTip="Insert image" Click="InsertImage_Click"/>
+                </RibbonGroup>
+                <RibbonGroup Header="Tables">
+                    <RibbonButton Label="Table..." ToolTip="Insert table" Click="InsertTable_Click"/>
+                    <RibbonButton Label="Insert Row Below" Click="InsertRowBelow_Click"/>
+                    <RibbonButton Label="Insert Row Above" Click="InsertRowAbove_Click"/>
+                    <RibbonButton Label="Insert Column Right" Click="InsertColRight_Click"/>
+                    <RibbonButton Label="Insert Column Left" Click="InsertColLeft_Click"/>
+                    <RibbonButton Label="Delete Row" Click="DeleteRow_Click"/>
+                    <RibbonButton Label="Delete Column" Click="DeleteColumn_Click"/>
+                </RibbonGroup>
+                <RibbonGroup Header="Reference">
+                    <RibbonButton Label="Table of Contents" ToolTip="Insert table of contents" Click="InsertToc_Click"/>
+                    <RibbonButton Label="Footnote" ToolTip="Insert footnote" Click="InsertFootnote_Click"/>
+                    <RibbonButton Label="Endnote" ToolTip="Insert endnote" Click="InsertEndnote_Click"/>
+                    <RibbonButton Label="Delete Note" ToolTip="Delete footnote/endnote at caret" Click="DeleteNote_Click"/>
+                    <RibbonButton Label="Convert Notes" ToolTip="Convert footnotes ↔ endnotes" Click="ConvertNotes_Click"/>
+                    <RibbonButton Label="Renumber Notes" ToolTip="Renumber all notes" Click="RenumberNotes_Click"/>
+                </RibbonGroup>
+            </RibbonTab>
+
+            <!-- ================= DESIGN ================= -->
+            <RibbonTab Header="Design">
+                <RibbonGroup Header="Page Layout">
+                    <RibbonButton Label="Page Setup..." ToolTip="Page size, margins, header and footer" Click="PageSetup_Click"/>
+                </RibbonGroup>
+            </RibbonTab>
+
+            <!-- ================= REVIEW ================= -->
+            <RibbonTab Header="Review">
+                <RibbonGroup Header="Proofing">
+                    <RibbonButton Label="Writing Analysis..." ToolTip="Repeated words, passive voice, adverbs" Click="Analysis_Click"/>
+                    <RibbonButton Label="Statistics" ToolTip="Document statistics" Click="Statistics_Click"/>
+                    <RibbonButton Label="Writing Progress..." ToolTip="Daily word counts and targets" Click="Progress_Click"/>
+                </RibbonGroup>
+                <RibbonGroup Header="Typography">
+                    <RibbonButton Label="Smart Quotes" Click="SmartQuotes_Click"/>
+                    <RibbonButton Label="Normalise Ellipsis" Click="Ellipsis_Click"/>
+                    <RibbonButton Label="Clean Whitespace" Click="Whitespace_Click"/>
+                    <RibbonButton Label="Remove Empty Paragraphs" Click="EmptyParagraphs_Click"/>
+                    <RibbonButton Label="Run All Typography" Click="AllTypography_Click"/>
+                </RibbonGroup>
+                <RibbonGroup Header="Automation">
+                    <RibbonButton Label="Macro Recorder..." ToolTip="Record and replay actions" Click="MacroRecorder_Click"/>
+                    <RibbonButton Label="Save Selection as Style..." Click="SaveStyle_Click"/>
+                    <RibbonButton Label="Find..." ToolTip="Find and replace (Ctrl+F)" Command="{x:Static local:MainWindow.FindCommand}"/>
+                    <RibbonButton Label="Replace..." ToolTip="Find and replace (Ctrl+H)" Command="{x:Static local:MainWindow.ReplaceCommand}"/>
+                </RibbonGroup>
+                <RibbonGroup Header="Settings">
+                    <RibbonButton Label="Settings..." Click="Settings_Click"/>
+                </RibbonGroup>
+            </RibbonTab>
+        </Ribbon>
 
         <editor:EditorControl x:Name="Editor"/>
     </DockPanel>

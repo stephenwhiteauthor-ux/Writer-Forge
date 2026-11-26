@@ -13,6 +13,8 @@ namespace WriterForge.Editor.Documents
         public int Version { get; set; } = 1;
         public string? Title { get; set; }
         public string? Author { get; set; }
+        public string? Header { get; set; }
+        public string? Footer { get; set; }
         public DateTimeOffset CreatedUtc { get; set; } = DateTimeOffset.UtcNow;
         public DateTimeOffset ModifiedUtc { get; set; } = DateTimeOffset.UtcNow;
     }

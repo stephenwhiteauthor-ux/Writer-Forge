@@ -23,6 +23,20 @@ namespace WriterForge.Editor.Services
 
         public static string? GetStyleKey(DependencyObject element) =>
             element.GetValue(StyleKeyProperty) as string;
+
+        /// <summary>Attached property linking a footnote marker run or note paragraph to a footnote id.</summary>
+        public static readonly DependencyProperty FootnoteIdProperty =
+            DependencyProperty.RegisterAttached(
+                "FootnoteId",
+                typeof(int),
+                typeof(EditorTags),
+                new FrameworkPropertyMetadata(0));
+
+        public static void SetFootnoteId(DependencyObject element, int value) =>
+            element.SetValue(FootnoteIdProperty, value);
+
+        public static int GetFootnoteId(DependencyObject element) =>
+            element.GetValue(FootnoteIdProperty) is int id ? id : 0;
     }
 
     /// <summary>Shared brushes/decoration helpers for spell and grammar proof underlines.</summary>

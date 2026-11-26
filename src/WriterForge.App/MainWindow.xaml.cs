@@ -1,6 +1,9 @@
-﻿using System.IO;
+using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Ribbon;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -30,6 +33,9 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Editor.DirtyChanged += (_, _) => UpdateTitle();
+        Editor.ToolbarStateChanged += (_, s) => ApplyEditorState(s);
+        Editor.ParagraphStylesChanged += (_, _) => PopulateStyleBox();
+        PopulateStyleBox();
         UpdateTitle();
         ApplySettings();
 
@@ -38,12 +44,142 @@ public partial class MainWindow : Window
         _autosaveTimer.Start();
     }
 
+    // ---------- Ribbon: state sync ----------
+
+    private bool _syncingRibbon;
+
+    private void PopulateStyleBox()
+    {
+        _syncingRibbon = true;
+        try
+        {
+            StyleBox.Items.Clear();
+            foreach (var (name, key) in Editor.GetParagraphStyles())
+                StyleBox.Items.Add(new ComboBoxItem { Content = name, Tag = key });
+        }
+        finally
+        {
+            _syncingRibbon = false;
+        }
+    }
+
+    private void ApplyEditorState(EditorToolbarState s)
+    {
+        _syncingRibbon = true;
+        try
+        {
+            UndoBtn.IsEnabled = s.CanUndo;
+            RedoBtn.IsEnabled = s.CanRedo;
+            BoldToggle.IsChecked = s.Bold;
+            ItalicToggle.IsChecked = s.Italic;
+            UnderlineToggle.IsChecked = s.Underline;
+            StrikeToggle.IsChecked = s.Strikethrough;
+            SubToggle.IsChecked = s.Subscript;
+            SupToggle.IsChecked = s.Superscript;
+            AlignLeftToggle.IsChecked = s.Alignment == TextAlignment.Left;
+            AlignCenterToggle.IsChecked = s.Alignment == TextAlignment.Center;
+            AlignRightToggle.IsChecked = s.Alignment == TextAlignment.Right;
+            AlignJustifyToggle.IsChecked = s.Alignment == TextAlignment.Justify;
+            BulletsToggle.IsChecked = s.Bullets;
+            NumbersToggle.IsChecked = s.Numbers;
+            SelectComboItem(FontBox, s.FontFamily);
+            SelectComboItem(SizeBox, s.FontSize?.ToString("0.##", CultureInfo.InvariantCulture));
+            SelectComboItem(StyleBox, s.StyleKey ?? "StyleNormal");
+        }
+        finally
+        {
+            _syncingRibbon = false;
+        }
+    }
+
+    private static void SelectComboItem(ComboBox box, string? value)
+    {
+        foreach (var item in box.Items)
+        {
+            if (item is ComboBoxItem ci)
+            {
+                ci.IsSelected = string.Equals(
+                    ci.Tag as string ?? ci.Content as string, value,
+                    StringComparison.OrdinalIgnoreCase);
+            }
+        }
+    }
+
+    // ---------- Ribbon: Home tab commands ----------
+
+    private void RibbonUndo_Click(object sender, RoutedEventArgs e) => Editor.Undo();
+    private void RibbonRedo_Click(object sender, RoutedEventArgs e) => Editor.Redo();
+    private void Bold_Click(object sender, RoutedEventArgs e) => Editor.ToggleBold();
+    private void Italic_Click(object sender, RoutedEventArgs e) => Editor.ToggleItalic();
+    private void Underline_Click(object sender, RoutedEventArgs e) => Editor.ToggleUnderline();
+    private void Strike_Click(object sender, RoutedEventArgs e) => Editor.ToggleStrikethrough();
+    private void Sub_Click(object sender, RoutedEventArgs e) => Editor.ToggleSubscript();
+    private void Sup_Click(object sender, RoutedEventArgs e) => Editor.ToggleSuperscript();
+    private void AlignLeft_Click(object sender, RoutedEventArgs e) => Editor.SetAlignment(TextAlignment.Left);
+    private void AlignCenter_Click(object sender, RoutedEventArgs e) => Editor.SetAlignment(TextAlignment.Center);
+    private void AlignRight_Click(object sender, RoutedEventArgs e) => Editor.SetAlignment(TextAlignment.Right);
+    private void AlignJustify_Click(object sender, RoutedEventArgs e) => Editor.SetAlignment(TextAlignment.Justify);
+    private void Bullets_Click(object sender, RoutedEventArgs e) => Editor.ToggleBullets();
+    private void Numbers_Click(object sender, RoutedEventArgs e) => Editor.ToggleNumbered();
+    private void IndentRight_Click(object sender, RoutedEventArgs e) => Editor.Indent(24);
+    private void IndentLeft_Click(object sender, RoutedEventArgs e) => Editor.Indent(-24);
+    private void ClearFormatting_Click(object sender, RoutedEventArgs e) => Editor.ClearFormatting();
+    private void FontColor_Click(object sender, RoutedEventArgs e) => Editor.ShowFontColorMenu(FontColorBtn);
+    private void Highlight_Click(object sender, RoutedEventArgs e) => Editor.ShowHighlightMenu(HighlightBtn);
+
+    private void FontBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingRibbon || Editor is null) return;
+        if (FontBox.SelectedItem is ComboBoxItem { Tag: string name })
+            Editor.SetFontFamily(name);
+    }
+
+    private void SizeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingRibbon || Editor is null) return;
+        if (SizeBox.SelectedItem is ComboBoxItem { Tag: string text } &&
+            double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var size))
+            Editor.SetFontSize(size);
+    }
+
+    private void StyleBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingRibbon || Editor is null) return;
+        if (StyleBox.SelectedItem is ComboBoxItem { Tag: string key })
+            Editor.SetStyle(key);
+    }
+
+    private void SpacingBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingRibbon || Editor is null) return;
+        if (SpacingBox.SelectedItem is ComboBoxItem { Tag: string tag })
+            Editor.SetLineSpacing(tag);
+    }
+
+    private void BeforeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingRibbon || Editor is null) return;
+        if (BeforeBox.SelectedItem is ComboBoxItem { Tag: string tag })
+            Editor.SetSpaceBefore(tag);
+    }
+
+    private void AfterBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingRibbon || Editor is null) return;
+        if (AfterBox.SelectedItem is ComboBoxItem { Tag: string tag })
+            Editor.SetSpaceAfter(tag);
+    }
+
     // ---------- Title / dirty state ----------
 
     private void UpdateTitle()
     {
-        var name = _filePath is null ? "Untitled" : Path.GetFileName(_filePath);
-        Title = $"{name}{(Editor.IsDirty ? "*" : "")} — WriterForge";
+        if (_filePath is null)
+        {
+            Title = Editor.IsDirty ? "WriterForge *" : "WriterForge";
+            return;
+        }
+        Title = $"{Path.GetFileName(_filePath)}{(Editor.IsDirty ? "*" : "")} — WriterForge";
     }
 
     private bool ConfirmDiscard()
@@ -121,6 +257,7 @@ public partial class MainWindow : Window
         {
             BackupExisting(_filePath);
             Editor.SaveDocument(_filePath);
+            WritingStatsService.RecordSave(_filePath, Editor.WordCount);
         }
         catch (Exception ex)
         {
@@ -141,6 +278,7 @@ public partial class MainWindow : Window
         try
         {
             Editor.SaveDocument(_filePath);
+            WritingStatsService.RecordSave(_filePath, Editor.WordCount);
             UpdateTitle();
         }
         catch
@@ -187,6 +325,7 @@ public partial class MainWindow : Window
         {
             Editor.SaveDocument(dialog.FileName);
             _filePath = dialog.FileName;
+            WritingStatsService.RecordSave(_filePath, Editor.WordCount);
         }
         catch (Exception ex)
         {
@@ -195,6 +334,37 @@ public partial class MainWindow : Window
         }
         UpdateTitle();
         return true;
+    }
+
+    // ---------- Insert ----------
+
+    private void InsertTable_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new InsertTableWindow { Owner = this };
+        if (dialog.ShowDialog() == true)
+            Editor.InsertTable(dialog.Rows, dialog.Columns);
+    }
+
+    private void InsertImage_Click(object sender, RoutedEventArgs e) => Editor.PromptInsertImage();
+
+    private void TableOp(bool ok)
+    {
+        if (!ok)
+            MessageBox.Show("Place the caret inside a table first.", "WriterForge", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void InsertRowBelow_Click(object sender, RoutedEventArgs e) => TableOp(Editor.InsertTableRow(below: true));
+    private void InsertRowAbove_Click(object sender, RoutedEventArgs e) => TableOp(Editor.InsertTableRow(below: false));
+    private void InsertColRight_Click(object sender, RoutedEventArgs e) => TableOp(Editor.InsertTableColumn(right: true));
+    private void InsertColLeft_Click(object sender, RoutedEventArgs e) => TableOp(Editor.InsertTableColumn(right: false));
+    private void DeleteRow_Click(object sender, RoutedEventArgs e) => TableOp(Editor.DeleteTableRow());
+    private void DeleteColumn_Click(object sender, RoutedEventArgs e) => TableOp(Editor.DeleteTableColumn());
+
+    private void InsertToc_Click(object sender, RoutedEventArgs e)
+    {
+        var count = Editor.InsertToc();
+        if (count == 0)
+            MessageBox.Show("No headings found. Apply Heading 1–3 styles first.", "WriterForge", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     // ---------- Find / Replace ----------
@@ -215,6 +385,29 @@ public partial class MainWindow : Window
     private void Analysis_Click(object sender, RoutedEventArgs e)
     {
         new WritingAnalysisWindow(Editor) { Owner = this }.ShowDialog();
+    }
+
+    private void Progress_Click(object sender, RoutedEventArgs e)
+    {
+        new ProjectStatsWindow { Owner = this }.ShowDialog();
+    }
+
+    private void InsertFootnote_Click(object sender, RoutedEventArgs e) => Editor.InsertFootnote();
+    private void InsertEndnote_Click(object sender, RoutedEventArgs e) => Editor.InsertFootnote(endnote: true);
+
+    private void DeleteNote_Click(object sender, RoutedEventArgs e)
+    {
+        if (!Editor.DeleteFootnoteAtCaret())
+            MessageBox.Show("Place the caret on a footnote marker or inside a note.", "WriterForge", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void ConvertNotes_Click(object sender, RoutedEventArgs e) => Editor.ConvertNotes();
+    private void RenumberNotes_Click(object sender, RoutedEventArgs e) => Editor.RenumberFootnotes();
+
+    private void SaveStyle_Click(object sender, RoutedEventArgs e)
+    {
+        if (!Editor.SaveSelectionAsStyle())
+            MessageBox.Show("Select some formatted text first.", "WriterForge", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void ReportTypographyResult(string name, int changes)
@@ -265,7 +458,9 @@ public partial class MainWindow : Window
         var flowDocument = Editor.DocumentSurface.Document;
         if (flowDocument is null) return;
 
-        var paginator = ((System.Windows.Documents.IDocumentPaginatorSource)flowDocument).DocumentPaginator;
+        var printable = PrintableDocument.Compose(
+            Editor.DocumentSurface.Document, Editor.Metadata.Header, Editor.Metadata.Footer);
+        var paginator = ((System.Windows.Documents.IDocumentPaginatorSource)printable).DocumentPaginator;
         var dialog = new PrintDialog();
         if (dialog.ShowDialog() == true)
         {
@@ -284,14 +479,16 @@ public partial class MainWindow : Window
     {
         var flowDocument = Editor.DocumentSurface.Document;
         if (flowDocument is null) return;
-        new PrintPreviewWindow(flowDocument) { Owner = this }.ShowDialog();
+        var printable = PrintableDocument.Compose(
+            Editor.DocumentSurface.Document, Editor.Metadata.Header, Editor.Metadata.Footer);
+        new PrintPreviewWindow(printable) { Owner = this }.ShowDialog();
     }
 
     private void PageSetup_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new PageSetupWindow { Owner = this };
+        var dialog = new PageSetupWindow(Editor.Metadata.Header, Editor.Metadata.Footer) { Owner = this };
         if (dialog.ShowDialog() == true)
-            Editor.ApplyPageSetup(dialog.PageSize, dialog.Margins);
+            Editor.ApplyPageSetup(dialog.PageSize, dialog.Margins, dialog.Header, dialog.Footer);
     }
 
     private void Exit_Click(object sender, RoutedEventArgs e) => Close();

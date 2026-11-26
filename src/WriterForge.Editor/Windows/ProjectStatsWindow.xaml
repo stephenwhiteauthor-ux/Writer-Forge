@@ -1,0 +1,76 @@
+<Window x:Class="WriterForge.Editor.Windows.ProjectStatsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Writing Progress" Width="560" Height="520"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <UniformGrid Columns="4" Margin="0,0,0,10">
+            <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Margin="2" Padding="8">
+                <StackPanel>
+                    <TextBlock x:Name="TodayText" FontSize="20" FontWeight="Bold"/>
+                    <TextBlock Text="words today" Foreground="Gray" FontSize="11"/>
+                </StackPanel>
+            </Border>
+            <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Margin="2" Padding="8">
+                <StackPanel>
+                    <TextBlock x:Name="StreakText" FontSize="20" FontWeight="Bold"/>
+                    <TextBlock Text="day streak" Foreground="Gray" FontSize="11"/>
+                </StackPanel>
+            </Border>
+            <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Margin="2" Padding="8">
+                <StackPanel>
+                    <TextBlock x:Name="AllTimeText" FontSize="20" FontWeight="Bold"/>
+                    <TextBlock Text="words all time" Foreground="Gray" FontSize="11"/>
+                </StackPanel>
+            </Border>
+            <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Margin="2" Padding="8">
+                <StackPanel>
+                    <TextBlock x:Name="WeekText" FontSize="20" FontWeight="Bold"/>
+                    <TextBlock Text="words last 7 days" Foreground="Gray" FontSize="11"/>
+                </StackPanel>
+            </Border>
+        </UniformGrid>
+
+        <StackPanel Grid.Row="1" Margin="4,0,4,10">
+            <TextBlock x:Name="TargetText" Margin="0,0,0,4"/>
+            <ProgressBar x:Name="TargetBar" Height="10" Minimum="0" Maximum="100"/>
+        </StackPanel>
+
+        <GroupBox Grid.Row="2" Header="Last 30 days" Padding="8">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="DaysList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="60"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="70"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Date}" VerticalAlignment="Center" FontSize="11"/>
+                                <Border Grid.Column="1" Background="#4A7FB5" Height="12" HorizontalAlignment="Left"
+                                        Width="{Binding BarWidth}" Margin="4,0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Words, StringFormat=N0}" VerticalAlignment="Center"
+                                           FontSize="11" TextAlignment="Right"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </GroupBox>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <TextBlock Text="Daily target:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBox x:Name="TargetBox" Width="80" VerticalAlignment="Center"/>
+            <Button Content="Set" Width="50" Margin="6,0,0,0" Click="SetTarget_Click"/>
+            <Button Content="Close" Width="70" Margin="8,0,0,0" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

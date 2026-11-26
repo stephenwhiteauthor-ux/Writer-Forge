@@ -39,153 +39,33 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Formatting bar -->
-        <Border Grid.Row="0"
-                Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
-                BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}"
-                BorderThickness="0,0,0,1"
-                Padding="4,2">
-            <WrapPanel VerticalAlignment="Center">
-                <Button x:Name="UndoButton" Content="Undo" ToolTip="Undo (Ctrl+Z)" Padding="6,2" Margin="1" Click="UndoClick"/>
-                <Button x:Name="RedoButton" Content="Redo" ToolTip="Redo (Ctrl+Y)" Padding="6,2" Margin="1" Click="RedoClick"/>
-
-                <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
-
-                <ComboBox x:Name="StyleBox" Width="110" Margin="1" ToolTip="Paragraph style"
-                          SelectionChanged="StyleBox_SelectionChanged">
-                    <ComboBoxItem Content="Normal" Tag="StyleNormal"/>
-                    <ComboBoxItem Content="Heading 1" Tag="StyleHeading1"/>
-                    <ComboBoxItem Content="Heading 2" Tag="StyleHeading2"/>
-                    <ComboBoxItem Content="Heading 3" Tag="StyleHeading3"/>
-                    <ComboBoxItem Content="Quote" Tag="StyleQuote"/>
-                    <ComboBoxItem Content="Caption" Tag="StyleCaption"/>
-                </ComboBox>
-                <ComboBox x:Name="FontBox" Width="140" Margin="1" ToolTip="Font"
-                          SelectionChanged="FontBox_SelectionChanged">
-                    <ComboBoxItem Content="Georgia" Tag="Georgia"/>
-                    <ComboBoxItem Content="Times New Roman" Tag="Times New Roman"/>
-                    <ComboBoxItem Content="Arial" Tag="Arial"/>
-                    <ComboBoxItem Content="Calibri" Tag="Calibri"/>
-                    <ComboBoxItem Content="Verdana" Tag="Verdana"/>
-                    <ComboBoxItem Content="Courier New" Tag="Courier New"/>
-                    <ComboBoxItem Content="Garamond" Tag="Garamond"/>
-                </ComboBox>
-                <ComboBox x:Name="SizeBox" Width="55" Margin="1" ToolTip="Font size"
-                          SelectionChanged="SizeBox_SelectionChanged">
-                    <ComboBoxItem Content="8" Tag="8"/>
-                    <ComboBoxItem Content="9" Tag="9"/>
-                    <ComboBoxItem Content="10" Tag="10"/>
-                    <ComboBoxItem Content="11" Tag="11"/>
-                    <ComboBoxItem Content="12" Tag="12"/>
-                    <ComboBoxItem Content="14" Tag="14"/>
-                    <ComboBoxItem Content="16" Tag="16"/>
-                    <ComboBoxItem Content="18" Tag="18"/>
-                    <ComboBoxItem Content="20" Tag="20"/>
-                    <ComboBoxItem Content="24" Tag="24"/>
-                    <ComboBoxItem Content="28" Tag="28"/>
-                    <ComboBoxItem Content="32" Tag="32"/>
-                    <ComboBoxItem Content="36" Tag="36"/>
-                    <ComboBoxItem Content="48" Tag="48"/>
-                    <ComboBoxItem Content="72" Tag="72"/>
-                </ComboBox>
-                <Button x:Name="FontColorButton" Content="A" Foreground="#C00000" FontWeight="Bold"
-                        ToolTip="Font colour" Padding="6,2" Margin="1" Click="FontColorClick"/>
-                <Button x:Name="HighlightButton" ToolTip="Highlight colour" Padding="6,2" Margin="1" Click="HighlightClick">
-                    <TextBlock Text="ab" Background="#FFF2A8" Padding="3,0"/>
-                </Button>
-
-                <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
-
-                <ToggleButton x:Name="BoldButton" Content="B" FontWeight="Bold" ToolTip="Bold (Ctrl+B)"
-                              Padding="7,2" Margin="1" Click="BoldClick"/>
-                <ToggleButton x:Name="ItalicButton" Content="I" FontStyle="Italic" ToolTip="Italic (Ctrl+I)"
-                              Padding="7,2" Margin="1" Click="ItalicClick"/>
-                <ToggleButton x:Name="UnderlineButton" ToolTip="Underline (Ctrl+U)"
-                              Padding="7,2" Margin="1" Click="UnderlineClick">
-                    <TextBlock Text="U" TextDecorations="Underline"/>
-                </ToggleButton>
-                <ToggleButton x:Name="StrikeButton" Click="StrikeClick">
-                    <TextBlock Text="S" TextDecorations="Strikethrough" Padding="7,2"/>
-                    <ToggleButton.ToolTip>Strikethrough</ToggleButton.ToolTip>
-                </ToggleButton>
-                <ToggleButton x:Name="SubButton" Content="x₂" ToolTip="Subscript" Padding="7,2" Margin="1" Click="SubClick"/>
-                <ToggleButton x:Name="SupButton" Content="x²" ToolTip="Superscript" Padding="7,2" Margin="1" Click="SupClick"/>
-
-                <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
-
-                <ToggleButton x:Name="AlignLeftButton" Content="⇤" ToolTip="Align left" Padding="6,2" Margin="1" Click="AlignClick" Tag="Left"/>
-                <ToggleButton x:Name="AlignCenterButton" Content="↔" ToolTip="Align centre" Padding="6,2" Margin="1" Click="AlignClick" Tag="Center"/>
-                <ToggleButton x:Name="AlignRightButton" Content="⇥" ToolTip="Align right" Padding="6,2" Margin="1" Click="AlignClick" Tag="Right"/>
-                <ToggleButton x:Name="AlignJustifyButton" Content="≡" ToolTip="Justify" Padding="6,2" Margin="1" Click="AlignClick" Tag="Justify"/>
-
-                <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
-
-                <ComboBox x:Name="SpacingBox" Width="70" Margin="1" ToolTip="Line spacing"
-                          SelectionChanged="SpacingBox_SelectionChanged">
-                    <ComboBoxItem Content="Single" Tag="1" IsSelected="True"/>
-                    <ComboBoxItem Content="1.15" Tag="1.15"/>
-                    <ComboBoxItem Content="1.5" Tag="1.5"/>
-                    <ComboBoxItem Content="Double" Tag="2"/>
-                </ComboBox>
-                <ComboBox x:Name="BeforeBox" Width="62" Margin="1" ToolTip="Space before paragraph"
-                          SelectionChanged="BeforeBox_SelectionChanged">
-                    <ComboBoxItem Content="Auto" Tag="" IsSelected="True"/>
-                    <ComboBoxItem Content="0 pt" Tag="0"/>
-                    <ComboBoxItem Content="6 pt" Tag="6"/>
-                    <ComboBoxItem Content="12 pt" Tag="12"/>
-                    <ComboBoxItem Content="18 pt" Tag="18"/>
-                </ComboBox>
-                <ComboBox x:Name="AfterBox" Width="62" Margin="1" ToolTip="Space after paragraph"
-                          SelectionChanged="AfterBox_SelectionChanged">
-                    <ComboBoxItem Content="Auto" Tag="" IsSelected="True"/>
-                    <ComboBoxItem Content="0 pt" Tag="0"/>
-                    <ComboBoxItem Content="6 pt" Tag="6"/>
-                    <ComboBoxItem Content="12 pt" Tag="12"/>
-                    <ComboBoxItem Content="18 pt" Tag="18"/>
-                </ComboBox>
-                <Button Content="→|" ToolTip="Increase indent" Padding="6,2" Margin="1" Click="IndentClick" Tag="24"/>
-                <Button Content="←|" ToolTip="Decrease indent" Padding="6,2" Margin="1" Click="IndentClick" Tag="-24"/>
-
-                <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
-
-                <ToggleButton x:Name="BulletsButton" Content="•" ToolTip="Bulleted list" Padding="7,2" Margin="1" Click="BulletsClick"/>
-                <ToggleButton x:Name="NumbersButton" Content="1." ToolTip="Numbered list" Padding="7,2" Margin="1" Click="NumbersClick"/>
-
-                <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
-
-                <Button Content="Image" ToolTip="Insert image" Padding="6,2" Margin="1" Click="InsertImageClick"/>
-
-                <Border Width="1" Background="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" Margin="5,2"/>
-
-                <Button Content="Clear" ToolTip="Clear formatting" Padding="6,2" Margin="1" Click="ClearFormattingClick"/>
-            </WrapPanel>
-        </Border>
-
         <!-- Document surface -->
         <RichTextBox x:Name="Document"
-                     Grid.Row="1"
+                     Grid.Row="0"
                      AcceptsReturn="True"
                      VerticalScrollBarVisibility="Auto"
                      FontFamily="Georgia"
                      FontSize="14"
                      Padding="48,24">
             <FlowDocument PagePadding="0">
-                <Paragraph>
-                    <Run Text="WriterForge" FontSize="28" FontWeight="Bold"/>
-                </Paragraph>
-                <Paragraph>
-                    <Run Text="Start writing..." Foreground="Gray"/>
-                </Paragraph>
+                <Paragraph/>
             </FlowDocument>
         </RichTextBox>
 
+        <!-- Empty-document hint (non-editable overlay) -->
+        <TextBlock x:Name="PlaceholderText" Grid.Row="1"
+                   Text="Start writing…"
+                   FontFamily="Georgia" FontSize="14" FontStyle="Italic"
+                   Foreground="Gray"
+                   Margin="52,30,0,0"
+                   IsHitTestVisible="False"/>
+
         <!-- Status bar -->
-        <StatusBar Grid.Row="2">
+        <StatusBar Grid.Row="1">
             <StatusBarItem>
                 <TextBlock x:Name="StatusText" Text="Words: 0"/>
             </StatusBarItem>

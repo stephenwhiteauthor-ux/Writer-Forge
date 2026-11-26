@@ -9,6 +9,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <GroupBox Header="Paper" Padding="8">
@@ -38,10 +39,25 @@
             </StackPanel>
         </GroupBox>
 
-        <TextBlock Grid.Row="2" TextWrapping="Wrap" Foreground="Gray" FontSize="11" Margin="0,12,0,0"
-                   Text="Headers, footers and page numbers require the paginated document view, planned for a later version."/>
+        <GroupBox Grid.Row="2" Header="Header / Footer" Padding="8">
+            <StackPanel>
+                <DockPanel Margin="0,0,0,6">
+                    <TextBlock Text="Header:" Width="60" VerticalAlignment="Center"/>
+                    <TextBox x:Name="HeaderBox"/>
+                </DockPanel>
+                <DockPanel>
+                    <TextBlock Text="Footer:" Width="60" VerticalAlignment="Center"/>
+                    <TextBox x:Name="FooterBox"/>
+                </DockPanel>
+                <TextBlock TextWrapping="Wrap" Foreground="Gray" FontSize="11" Margin="0,6,0,0"
+                           Text="Page numbers are added automatically. Header/footer text is stored in .wforge documents."/>
+            </StackPanel>
+        </GroupBox>
 
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+        <TextBlock Grid.Row="3" TextWrapping="Wrap" Foreground="Gray" FontSize="11" Margin="0,12,0,0"
+                   Text="Full header/footer regions with logos and fields require the paginated document view, planned for a later version."/>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button Content="Cancel" Width="80" Margin="0,0,8,0" IsCancel="True"/>
             <Button Content="OK" Width="80" IsDefault="True" Click="Ok_Click"/>
         </StackPanel>

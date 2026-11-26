@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;
@@ -23,7 +24,8 @@ namespace WriterForge.Editor.Controls
         private static readonly Regex WordPattern = new(@"[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*", RegexOptions.Compiled);
 
         private bool _suspendDirty;
-        private bool _syncing;
+        private int _customStyleCounter;
+        private readonly List<(string Name, string Key)> _customStyles = new();
 
         // Proofing (spell + grammar underlines, suggestions)
         private static readonly Regex ProofWordPattern = new(@"[\p{L}][\p{L}'’\-]*", RegexOptions.Compiled);
@@ -44,11 +46,21 @@ namespace WriterForge.Editor.Controls
         /// <summary>Raised when the dirty state changes (text edited, loaded, or saved).</summary>
         public event EventHandler? DirtyChanged;
 
+        /// <summary>Raised when the formatting-state snapshot changes (caret/selection moved).</summary>
+        public event EventHandler<EditorToolbarState>? ToolbarStateChanged;
+
+        /// <summary>Raised when the set of paragraph styles changes (custom style added).</summary>
+        public event EventHandler? ParagraphStylesChanged;
+
         /// <summary>True when the document has unsaved changes.</summary>
         public bool IsDirty { get; private set; }
 
         /// <summary>Metadata stored inside .wforge packages.</summary>
         public DocumentMetadata Metadata { get; private set; } = new();
+
+        /// <summary>Current word count of the document.</summary>
+        public int WordCount =>
+            WordPattern.Matches(new TextRange(Document.Document.ContentStart, Document.Document.ContentEnd).Text).Count;
 
         public EditorControl()
         {
@@ -72,7 +84,7 @@ namespace WriterForge.Editor.Controls
             _suspendDirty = true;
             try
             {
-                Document.Document = new FlowDocument();
+                Document.Document = new FlowDocument(new Paragraph());
             }
             finally
             {
@@ -81,6 +93,7 @@ namespace WriterForge.Editor.Controls
             Metadata = new DocumentMetadata();
             SetDirty(false);
             ResetProofing();
+            SyncToolbar();
         }
 
         public void LoadDocument(string path)
@@ -115,6 +128,7 @@ namespace WriterForge.Editor.Controls
             }
             SetDirty(false);
             ResetProofing();
+            SyncToolbar();
         }
 
         public void SaveDocument(string path)
@@ -145,7 +159,7 @@ namespace WriterForge.Editor.Controls
             var title = !string.IsNullOrWhiteSpace(Metadata.Title)
                 ? Metadata.Title
                 : Path.GetFileNameWithoutExtension(path);
-            PdfExportService.Export(Document.Document, path, title);
+            PdfExportService.Export(Document.Document, path, title, Metadata.Header, Metadata.Footer);
         }
 
         private void SetDirty(bool dirty)
@@ -177,38 +191,37 @@ namespace WriterForge.Editor.Controls
             var text = new TextRange(Document.Document.ContentStart, Document.Document.ContentEnd).Text;
             var words = WordPattern.Matches(text).Count;
             StatusText.Text = $"Words: {words}    Characters: {text.Length}    Paragraphs: {Document.Document.Blocks.Count}";
+            PlaceholderText.Visibility = string.IsNullOrWhiteSpace(text)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         // ---------- Toolbar sync ----------
 
-        private void SyncToolbar()
+        /// <summary>Recompute and publish the current formatting state to ribbon hosts.</summary>
+        public void SyncToolbar()
         {
-            if (_syncing) return;
             var sel = Document.Selection;
+            var paragraph = sel.Start.Paragraph;
+            var list = paragraph is { } p ? BlockTree.ParentList(p) : null;
 
-            _syncing = true;
-            try
+            ToolbarStateChanged?.Invoke(this, new EditorToolbarState
             {
-                UndoButton.IsEnabled = Document.CanUndo;
-                RedoButton.IsEnabled = Document.CanRedo;
-
-                BoldButton.IsChecked = GetValue(sel, TextElement.FontWeightProperty) is FontWeight w && w == FontWeights.Bold;
-                ItalicButton.IsChecked = GetValue(sel, TextElement.FontStyleProperty) is FontStyle s && s == FontStyles.Italic;
-                UnderlineButton.IsChecked = HasDecoration(sel, TextDecorationLocation.Underline);
-                StrikeButton.IsChecked = HasDecoration(sel, TextDecorationLocation.Strikethrough);
-                SubButton.IsChecked = GetValue(sel, Inline.BaselineAlignmentProperty) is BaselineAlignment b && b == BaselineAlignment.Subscript;
-                SupButton.IsChecked = GetValue(sel, Inline.BaselineAlignmentProperty) is BaselineAlignment b2 && b2 == BaselineAlignment.Superscript;
-
-                SyncComboBox(FontBox, GetValue(sel, TextElement.FontFamilyProperty) as FontFamily);
-                SyncComboBox(SizeBox, GetValue(sel, TextElement.FontSizeProperty));
-                SyncStyleBox(sel);
-                SyncAlignButtons(sel);
-                SyncListButtons(sel);
-            }
-            finally
-            {
-                _syncing = false;
-            }
+                CanUndo = Document.CanUndo,
+                CanRedo = Document.CanRedo,
+                Bold = GetValue(sel, TextElement.FontWeightProperty) is FontWeight w && w == FontWeights.Bold,
+                Italic = GetValue(sel, TextElement.FontStyleProperty) is FontStyle s && s == FontStyles.Italic,
+                Underline = HasDecoration(sel, TextDecorationLocation.Underline),
+                Strikethrough = HasDecoration(sel, TextDecorationLocation.Strikethrough),
+                Subscript = GetValue(sel, Inline.BaselineAlignmentProperty) is BaselineAlignment b && b == BaselineAlignment.Subscript,
+                Superscript = GetValue(sel, Inline.BaselineAlignmentProperty) is BaselineAlignment b2 && b2 == BaselineAlignment.Superscript,
+                FontFamily = (GetValue(sel, TextElement.FontFamilyProperty) as FontFamily)?.Source,
+                FontSize = GetValue(sel, TextElement.FontSizeProperty) as double?,
+                StyleKey = paragraph is null ? null : EditorTags.GetStyleKey(paragraph),
+                Alignment = paragraph?.TextAlignment,
+                Bullets = list?.MarkerStyle == TextMarkerStyle.Disc,
+                Numbers = list?.MarkerStyle == TextMarkerStyle.Decimal,
+            });
         }
 
         private static object? GetValue(TextRange sel, DependencyProperty property)
@@ -227,57 +240,30 @@ namespace WriterForge.Editor.Controls
             return false;
         }
 
-        private void SyncComboBox(ComboBox box, object? value)
-        {
-            foreach (ComboBoxItem item in box.Items)
-            {
-                var match = value switch
-                {
-                    FontFamily f => string.Equals(item.Tag as string, f.Source, StringComparison.OrdinalIgnoreCase),
-                    double size => double.TryParse(item.Tag as string, out var s) && Math.Abs(s - size) < 0.01,
-                    _ => false,
-                };
-                item.IsSelected = match;
-            }
-        }
-
-        private void SyncStyleBox(TextRange sel)
-        {
-            var style = sel.Start.Paragraph?.Style;
-            foreach (ComboBoxItem item in StyleBox.Items)
-                item.IsSelected = ReferenceEquals(item.Tag is string key ? FindResource(key) : null, style);
-        }
-
-        private void SyncAlignButtons(TextRange sel)
-        {
-            var align = sel.Start.Paragraph?.TextAlignment ?? TextAlignment.Left;
-            foreach (var btn in new[] { AlignLeftButton, AlignCenterButton, AlignRightButton, AlignJustifyButton })
-                btn.IsChecked = string.Equals(btn.Tag as string, align.ToString(), StringComparison.OrdinalIgnoreCase);
-        }
-
-        // ---------- Toolbar actions ----------
+        // ---------- Ribbon commands ----------
 
         private void ApplyProperty(DependencyProperty property, object? value)
         {
             Document.Selection.ApplyPropertyValue(property, value);
         }
 
-        private void UndoClick(object sender, RoutedEventArgs e)
+        /// <summary>Undo the last edit.</summary>
+        public void Undo()
         {
             if (Document.CanUndo) Document.Undo();
             SyncToolbar();
         }
 
-        private void RedoClick(object sender, RoutedEventArgs e)
+        /// <summary>Redo the last undone edit.</summary>
+        public void Redo()
         {
             if (Document.CanRedo) Document.Redo();
             SyncToolbar();
         }
 
-        private void StyleBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        /// <summary>Apply a named paragraph style (key from <see cref="GetParagraphStyles"/>).</summary>
+        public void SetStyle(string key)
         {
-            if (_syncing || StyleBox.SelectedItem is not ComboBoxItem item || item.Tag is not string key)
-                return;
             ApplyParagraphStyle(key);
             MacroRecorder.Record("Style", key);
         }
@@ -302,10 +288,9 @@ namespace WriterForge.Editor.Controls
             }
         }
 
-        private void FontBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        /// <summary>Apply a font family to the selection (and typing default when collapsed).</summary>
+        public void SetFontFamily(string name)
         {
-            if (_syncing || FontBox.SelectedItem is not ComboBoxItem item || item.Tag is not string name)
-                return;
             ApplyFontName(name);
             MacroRecorder.Record("Font", name);
         }
@@ -317,13 +302,11 @@ namespace WriterForge.Editor.Controls
             if (Document.Selection.IsEmpty) Document.FontFamily = family;
         }
 
-        private void SizeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        /// <summary>Apply a font size to the selection (and typing default when collapsed).</summary>
+        public void SetFontSize(double size)
         {
-            if (_syncing || SizeBox.SelectedItem is not ComboBoxItem item || item.Tag is not string text)
-                return;
-            if (!double.TryParse(text, out var size)) return;
             ApplyFontSize(size);
-            MacroRecorder.Record("Size", text);
+            MacroRecorder.Record("Size", size.ToString(CultureInfo.InvariantCulture));
         }
 
         private void ApplyFontSize(double size)
@@ -339,7 +322,8 @@ namespace WriterForge.Editor.Controls
             ApplyProperty(TextElement.FontWeightProperty, weight);
         }
 
-        private void BoldClick(object sender, RoutedEventArgs e) { ToggleFontWeight(); SyncToolbar(); MacroRecorder.Record("Bold"); }
+        /// <summary>Toggle bold on the selection.</summary>
+        public void ToggleBold() { ToggleFontWeight(); SyncToolbar(); MacroRecorder.Record("Bold"); }
 
         private void ToggleFontStyle()
         {
@@ -348,7 +332,8 @@ namespace WriterForge.Editor.Controls
             ApplyProperty(TextElement.FontStyleProperty, style);
         }
 
-        private void ItalicClick(object sender, RoutedEventArgs e) { ToggleFontStyle(); SyncToolbar(); MacroRecorder.Record("Italic"); }
+        /// <summary>Toggle italic on the selection.</summary>
+        public void ToggleItalic() { ToggleFontStyle(); SyncToolbar(); MacroRecorder.Record("Italic"); }
 
         private void ToggleDecoration(TextDecorationLocation location)
         {
@@ -370,9 +355,11 @@ namespace WriterForge.Editor.Controls
             ApplyProperty(Inline.TextDecorationsProperty, decorations.Count > 0 ? decorations : null);
         }
 
-        private void UnderlineClick(object sender, RoutedEventArgs e) { ToggleDecoration(TextDecorationLocation.Underline); SyncToolbar(); MacroRecorder.Record("Underline"); }
+        /// <summary>Toggle underline on the selection.</summary>
+        public void ToggleUnderline() { ToggleDecoration(TextDecorationLocation.Underline); SyncToolbar(); MacroRecorder.Record("Underline"); }
 
-        private void StrikeClick(object sender, RoutedEventArgs e) { ToggleDecoration(TextDecorationLocation.Strikethrough); SyncToolbar(); MacroRecorder.Record("Strike"); }
+        /// <summary>Toggle strikethrough on the selection.</summary>
+        public void ToggleStrikethrough() { ToggleDecoration(TextDecorationLocation.Strikethrough); SyncToolbar(); MacroRecorder.Record("Strike"); }
 
         private void ToggleBaseline(BaselineAlignment target, BaselineAlignment off)
         {
@@ -381,17 +368,18 @@ namespace WriterForge.Editor.Controls
             ApplyProperty(Inline.BaselineAlignmentProperty, value);
         }
 
-        private void SubClick(object sender, RoutedEventArgs e) { ToggleBaseline(BaselineAlignment.Subscript, BaselineAlignment.Baseline); SyncToolbar(); MacroRecorder.Record("Subscript"); }
+        /// <summary>Toggle subscript on the selection.</summary>
+        public void ToggleSubscript() { ToggleBaseline(BaselineAlignment.Subscript, BaselineAlignment.Baseline); SyncToolbar(); MacroRecorder.Record("Subscript"); }
 
-        private void SupClick(object sender, RoutedEventArgs e) { ToggleBaseline(BaselineAlignment.Superscript, BaselineAlignment.Baseline); SyncToolbar(); MacroRecorder.Record("Superscript"); }
+        /// <summary>Toggle superscript on the selection.</summary>
+        public void ToggleSuperscript() { ToggleBaseline(BaselineAlignment.Superscript, BaselineAlignment.Baseline); SyncToolbar(); MacroRecorder.Record("Superscript"); }
 
-        private void AlignClick(object sender, RoutedEventArgs e)
+        /// <summary>Set paragraph alignment on the selection.</summary>
+        public void SetAlignment(TextAlignment align)
         {
-            if (sender is not ToggleButton { Tag: string tag }) return;
-            if (!Enum.TryParse<TextAlignment>(tag, true, out var align)) return;
             ApplyProperty(Paragraph.TextAlignmentProperty, align);
             SyncToolbar();
-            MacroRecorder.Record("Align", tag);
+            MacroRecorder.Record("Align", align.ToString());
         }
 
         // ---------- Colour ----------
@@ -408,9 +396,11 @@ namespace WriterForge.Editor.Controls
             ("Pink", "#FCE4EC"), ("Orange", "#FBE5D6"), ("Gray", "#D9D9D9"),
         };
 
-        private void FontColorClick(object sender, RoutedEventArgs e) => ShowColorMenu(FontColorButton, true);
+        /// <summary>Show the font-colour palette anchored to <paramref name="target"/>.</summary>
+        public void ShowFontColorMenu(FrameworkElement target) => ShowColorMenu(target, true);
 
-        private void HighlightClick(object sender, RoutedEventArgs e) => ShowColorMenu(HighlightButton, false);
+        /// <summary>Show the highlight-colour palette anchored to <paramref name="target"/>.</summary>
+        public void ShowHighlightMenu(FrameworkElement target) => ShowColorMenu(target, false);
 
         private void ShowColorMenu(FrameworkElement target, bool foreground)
         {
@@ -463,17 +453,16 @@ namespace WriterForge.Editor.Controls
 
         // ---------- Line spacing, paragraph spacing, indent ----------
 
-        private void SpacingBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        /// <summary>Set line spacing multiplier ("1", "1.15", "1.5", "2").</summary>
+        public void SetLineSpacing(string tag)
         {
-            if (_syncing || SpacingBox.SelectedItem is not ComboBoxItem { Tag: string tag })
-                return;
             PlaySpacing(tag);
             MacroRecorder.Record("Spacing", tag);
         }
 
         private void PlaySpacing(string tag)
         {
-            if (!double.TryParse(tag, out var spacing)) return;
+            if (Document?.Document is null || !double.TryParse(tag, out var spacing)) return;
             var size = GetValue(Document.Selection, TextElement.FontSizeProperty) is double s && !double.IsNaN(s)
                 ? s
                 : Document.FontSize;
@@ -483,24 +472,23 @@ namespace WriterForge.Editor.Controls
                 p.LineHeight = lineHeight;
         }
 
-        private void BeforeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        /// <summary>Set space-before-paragraph in points ("" = auto).</summary>
+        public void SetSpaceBefore(string tag)
         {
-            if (_syncing || BeforeBox.SelectedItem is not ComboBoxItem { Tag: string tag })
-                return;
             PlayParaSpacing(true, tag);
             MacroRecorder.Record("SpaceBefore", tag);
         }
 
-        private void AfterBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        /// <summary>Set space-after-paragraph in points ("" = auto).</summary>
+        public void SetSpaceAfter(string tag)
         {
-            if (_syncing || AfterBox.SelectedItem is not ComboBoxItem { Tag: string tag })
-                return;
             PlayParaSpacing(false, tag);
             MacroRecorder.Record("SpaceAfter", tag);
         }
 
         private void PlayParaSpacing(bool before, string tag)
         {
+            if (Document?.Document is null) return;
             const double dipPerPoint = 96.0 / 72.0;
             double? points = double.TryParse(tag, out var pt) ? pt : null;
             foreach (var p in SelectedParagraphs())
@@ -518,16 +506,16 @@ namespace WriterForge.Editor.Controls
             }
         }
 
-        private void IndentClick(object sender, RoutedEventArgs e)
+        /// <summary>Adjust left indent of selected paragraphs by <paramref name="delta"/> DIPs.</summary>
+        public void Indent(double delta)
         {
-            if (sender is not Button { Tag: string tag } || !double.TryParse(tag, out var delta))
-                return;
             PlayIndent(delta);
-            MacroRecorder.Record("Indent", tag);
+            MacroRecorder.Record("Indent", delta.ToString(CultureInfo.InvariantCulture));
         }
 
         private void PlayIndent(double delta)
         {
+            if (Document?.Document is null) return;
             foreach (var p in SelectedParagraphs())
             {
                 var m = EffectiveMargin(p);
@@ -554,7 +542,8 @@ namespace WriterForge.Editor.Controls
                 double.IsNaN(m.Bottom) ? auto : m.Bottom);
         }
 
-        private void InsertImageClick(object sender, RoutedEventArgs e)
+        /// <summary>Show the image picker and insert the chosen file.</summary>
+        public void PromptInsertImage()
         {
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
@@ -612,7 +601,7 @@ namespace WriterForge.Editor.Controls
             return menu;
         }
 
-        private void InsertInlineAtCaret(InlineUIContainer container)
+        private void InsertInlineAtCaret(Inline container)
         {
             var caret = Document.CaretPosition;
             var paragraph = caret.Paragraph;
@@ -653,7 +642,8 @@ namespace WriterForge.Editor.Controls
             _ => 0,
         };
 
-        private void ClearFormattingClick(object sender, RoutedEventArgs e)
+        /// <summary>Remove all direct formatting from the selection.</summary>
+        public void ClearFormatting()
         {
             ClearAllFormatting();
             SyncToolbar();
@@ -760,8 +750,8 @@ namespace WriterForge.Editor.Controls
             return brush;
         }
 
-        /// <summary>Apply page size and margins to the document.</summary>
-        public void ApplyPageSetup(Size pageSize, Thickness margins)
+        /// <summary>Apply page size, margins, and running header/footer text.</summary>
+        public void ApplyPageSetup(Size pageSize, Thickness margins, string? header, string? footer)
         {
             _suspendDirty = true;
             try
@@ -774,6 +764,8 @@ namespace WriterForge.Editor.Controls
             {
                 _suspendDirty = false;
             }
+            Metadata.Header = string.IsNullOrWhiteSpace(header) ? null : header.Trim();
+            Metadata.Footer = string.IsNullOrWhiteSpace(footer) ? null : footer.Trim();
             SetDirty(true);
         }
 
@@ -854,6 +846,18 @@ namespace WriterForge.Editor.Controls
 
         private void RunProofing()
         {
+            // Proofing is best-effort: a failure here must never crash typing.
+            try
+            {
+                RunProofingCore();
+            }
+            catch
+            {
+            }
+        }
+
+        private void RunProofingCore()
+        {
             if (!SpellCheckEnabled && !GrammarCheckEnabled) return;
 
             DocumentTextMap map;
@@ -932,10 +936,16 @@ namespace WriterForge.Editor.Controls
 
                 Dispatcher.BeginInvoke(() =>
                 {
-                    if (cts.IsCancellationRequested) return;
-                    if (_proofText != text) return; // document changed since the check started
-                    _grammarCheckedText = text;
-                    ApplyGrammarUnderlines(issues, map);
+                    try
+                    {
+                        if (cts.IsCancellationRequested) return;
+                        if (_proofText != text) return; // document changed since the check started
+                        _grammarCheckedText = text;
+                        ApplyGrammarUnderlines(issues, map);
+                    }
+                    catch
+                    {
+                    }
                 });
             });
         }
@@ -999,16 +1009,11 @@ namespace WriterForge.Editor.Controls
 
         // ---------- Lists ----------
 
-        private void SyncListButtons(TextRange sel)
-        {
-            var list = sel.Start.Paragraph is { } p ? BlockTree.ParentList(p) : null;
-            BulletsButton.IsChecked = list?.MarkerStyle == TextMarkerStyle.Disc;
-            NumbersButton.IsChecked = list?.MarkerStyle == TextMarkerStyle.Decimal;
-        }
+        /// <summary>Toggle a bulleted list on the selected paragraphs.</summary>
+        public void ToggleBullets() { ToggleList(TextMarkerStyle.Disc); MacroRecorder.Record("Bullets"); }
 
-        private void BulletsClick(object sender, RoutedEventArgs e) { ToggleList(TextMarkerStyle.Disc); MacroRecorder.Record("Bullets"); }
-
-        private void NumbersClick(object sender, RoutedEventArgs e) { ToggleList(TextMarkerStyle.Decimal); MacroRecorder.Record("Numbers"); }
+        /// <summary>Toggle a numbered list on the selected paragraphs.</summary>
+        public void ToggleNumbered() { ToggleList(TextMarkerStyle.Decimal); MacroRecorder.Record("Numbers"); }
 
         private void ToggleList(TextMarkerStyle markerStyle)
         {
@@ -1086,6 +1091,297 @@ namespace WriterForge.Editor.Controls
                 ListItem item => item.Blocks,
                 _ => null,
             };
+
+        // ---------- Tables ----------
+
+        /// <summary>Insert a rows×cols table before the caret's paragraph.</summary>
+        public void InsertTable(int rows, int cols)
+        {
+            rows = Math.Clamp(rows, 1, 50);
+            cols = Math.Clamp(cols, 1, 12);
+
+            var group = new TableRowGroup();
+            Paragraph? firstCellParagraph = null;
+            for (var r = 0; r < rows; r++)
+            {
+                var row = new TableRow();
+                for (var c = 0; c < cols; c++)
+                {
+                    var cell = NewTableCell();
+                    row.Cells.Add(cell);
+                    firstCellParagraph ??= cell.Blocks.OfType<Paragraph>().FirstOrDefault();
+                }
+                group.Rows.Add(row);
+            }
+            var table = new Table { BorderBrush = Brushes.Gray, BorderThickness = new Thickness(0.5) };
+            table.RowGroups.Add(group);
+
+            var caretParagraph = Document.CaretPosition.Paragraph;
+            var blocks = caretParagraph is null ? null : ParentBlocksOf(caretParagraph);
+            if (blocks is null)
+            {
+                Document.Document.Blocks.Add(table);
+            }
+            else if (caretParagraph is not null)
+            {
+                blocks.InsertBefore(caretParagraph, table);
+            }
+
+            if (firstCellParagraph is not null)
+                Document.CaretPosition = firstCellParagraph.ContentStart;
+            SyncToolbar();
+        }
+
+        private static TableCell NewTableCell()
+        {
+            var cell = new TableCell
+            {
+                BorderBrush = Brushes.Gray,
+                BorderThickness = new Thickness(0.5),
+            };
+            cell.Blocks.Add(new Paragraph());
+            return cell;
+        }
+
+        private (Table Table, TableRowGroup Group, TableRow Row, TableCell Cell, int RowIndex, int ColIndex)? TableContextAtCaret()
+        {
+            var cell = Document.CaretPosition.Paragraph?.Parent as TableCell;
+            var row = cell?.Parent as TableRow;
+            var group = row?.Parent as TableRowGroup;
+            var table = group?.Parent as Table;
+            if (cell is null || row is null || group is null || table is null) return null;
+            return (table, group, row, cell, group.Rows.IndexOf(row), row.Cells.IndexOf(cell));
+        }
+
+        /// <summary>Insert a table row above or below the caret row.</summary>
+        public bool InsertTableRow(bool below)
+        {
+            var ctx = TableContextAtCaret();
+            if (ctx is null) return false;
+            var (_, group, row, _, rowIndex, _) = ctx.Value;
+            var newRow = new TableRow();
+            for (var i = 0; i < row.Cells.Count; i++)
+                newRow.Cells.Add(NewTableCell());
+            group.Rows.Insert(below ? rowIndex + 1 : rowIndex, newRow);
+            return true;
+        }
+
+        /// <summary>Insert a table column left or right of the caret column.</summary>
+        public bool InsertTableColumn(bool right)
+        {
+            var ctx = TableContextAtCaret();
+            if (ctx is null) return false;
+            var (_, _, _, _, _, colIndex) = ctx.Value;
+            foreach (TableRow row in ctx.Value.Group.Rows)
+                row.Cells.Insert(Math.Min(right ? colIndex + 1 : colIndex, row.Cells.Count), NewTableCell());
+            return true;
+        }
+
+        /// <summary>Delete the caret's table row.</summary>
+        public bool DeleteTableRow()
+        {
+            var ctx = TableContextAtCaret();
+            if (ctx is null || ctx.Value.Group.Rows.Count <= 1) return false;
+            ctx.Value.Group.Rows.RemoveAt(ctx.Value.RowIndex);
+            return true;
+        }
+
+        /// <summary>Delete the caret's table column.</summary>
+        public bool DeleteTableColumn()
+        {
+            var ctx = TableContextAtCaret();
+            if (ctx is null) return false;
+            var (_, _, _, _, _, colIndex) = ctx.Value;
+            foreach (TableRow row in ctx.Value.Group.Rows)
+                if (row.Cells.Count > 1)
+                    row.Cells.RemoveAt(Math.Min(colIndex, row.Cells.Count - 1));
+            return true;
+        }
+
+        // ---------- Footnotes / endnotes ----------
+
+        /// <summary>
+        /// Insert a footnote (or endnote) at the caret: a superscript marker
+        /// plus a numbered note paragraph at the end of the document.
+        /// </summary>
+        public void InsertFootnote(bool endnote = false)
+        {
+            var id = FootnoteService.NextId(Document.Document);
+            var number = FootnoteService.Collect(Document.Document).Count + 1;
+
+            var marker = new Run { Text = number.ToString() };
+            marker.SetValue(Inline.BaselineAlignmentProperty, BaselineAlignment.Superscript);
+            EditorTags.SetFootnoteId(marker, id);
+            InsertInlineAtCaret(marker);
+
+            var notePara = new Paragraph { Margin = new Thickness(24, 2, 0, 2), FontSize = 10 };
+            EditorTags.SetStyleKey(notePara, endnote ? FootnoteService.EndnoteStyleKey : FootnoteService.FootnoteStyleKey);
+            EditorTags.SetFootnoteId(notePara, id);
+            notePara.Inlines.Add(new Run($"{number}. "));
+            notePara.Inlines.Add(new Run());
+            Document.Document.Blocks.Add(notePara);
+            SetDirty(true);
+        }
+
+        /// <summary>Delete the footnote whose marker or note contains the caret.</summary>
+        public bool DeleteFootnoteAtCaret()
+        {
+            var caretParagraph = Document.CaretPosition.Paragraph;
+            int id;
+            Paragraph? noteToRemove = null;
+
+            if (caretParagraph is not null && FootnoteService.IsNoteParagraph(caretParagraph))
+            {
+                id = EditorTags.GetFootnoteId(caretParagraph);
+                noteToRemove = caretParagraph;
+            }
+            else if (Document.CaretPosition.Parent is Run markerRun
+                     && EditorTags.GetFootnoteId(markerRun) != 0)
+            {
+                id = EditorTags.GetFootnoteId(markerRun);
+            }
+            else
+            {
+                return false;
+            }
+
+            if (noteToRemove is not null && ParentBlocksOf(noteToRemove) is { } noteBlocks)
+                noteBlocks.Remove(noteToRemove);
+
+            foreach (var run in DocumentTextMap.EnumerateRuns(Document.Document)
+                         .Where(r => EditorTags.GetFootnoteId(r) == id)
+                         .ToList())
+            {
+                switch (run.Parent)
+                {
+                    case Paragraph p: p.Inlines.Remove(run); break;
+                    case Span span: span.Inlines.Remove(run); break;
+                }
+            }
+            foreach (var p in BlockTree.AllParagraphs(Document.Document)
+                         .Where(p => EditorTags.GetFootnoteId(p) == id)
+                         .ToList())
+            {
+                if (ParentBlocksOf(p) is { } blocks) blocks.Remove(p);
+            }
+
+            FootnoteService.Renumber(Document.Document);
+            SetDirty(true);
+            return true;
+        }
+
+        /// <summary>Renumber all footnote markers and note prefixes.</summary>
+        public void RenumberFootnotes()
+        {
+            FootnoteService.Renumber(Document.Document);
+            SetDirty(true);
+        }
+
+        /// <summary>Toggle all notes between footnote and endnote style.</summary>
+        public void ConvertNotes()
+        {
+            FootnoteService.ConvertAll(Document.Document);
+            SetDirty(true);
+        }
+
+        // ---------- Paragraph styles ----------
+
+        /// <summary>Built-in paragraph styles (Normal through Caption).</summary>
+        public static readonly (string Name, string Key)[] BuiltInStyles =
+        {
+            ("Normal", "StyleNormal"),
+            ("Heading 1", "StyleHeading1"),
+            ("Heading 2", "StyleHeading2"),
+            ("Heading 3", "StyleHeading3"),
+            ("Quote", "StyleQuote"),
+            ("Caption", "StyleCaption"),
+        };
+
+        /// <summary>All selectable paragraph styles: built-ins plus session custom styles.</summary>
+        public IReadOnlyList<(string Name, string Key)> GetParagraphStyles() =>
+            BuiltInStyles.Concat(_customStyles).ToList();
+
+        // ---------- Table of contents & custom styles ----------
+
+        private static string PlainText(Paragraph paragraph) =>
+            string.Concat(DocumentTextMap.EnumerateRuns(paragraph.Inlines).Select(r => r.Text));
+
+        /// <summary>
+        /// Insert a table of contents (heading text only — page numbers require
+        /// the paginated view) at the caret. Returns the number of entries.
+        /// </summary>
+        public int InsertToc()
+        {
+            var headings = BlockTree.AllParagraphs(Document.Document)
+                .Select(p => (Para: p, Key: EditorTags.GetStyleKey(p), Text: PlainText(p).Trim()))
+                .Where(x => x.Key is "Heading1" or "Heading2" or "Heading3" && x.Text.Length > 0)
+                .ToList();
+            if (headings.Count == 0) return 0;
+
+            var blocks = new List<Block>
+            {
+                new Paragraph(new Run("Contents") { FontSize = 20, FontWeight = FontWeights.Bold }),
+            };
+            foreach (var h in headings)
+            {
+                var level = h.Key == "Heading1" ? 0 : h.Key == "Heading2" ? 1 : 2;
+                var para = new Paragraph(new Run(h.Text));
+                para.Margin = new Thickness(level * 24, 2, 0, 2);
+                blocks.Add(para);
+            }
+
+            var caretParagraph = Document.CaretPosition.Paragraph;
+            var parent = caretParagraph is null ? null : ParentBlocksOf(caretParagraph);
+            if (parent is null)
+            {
+                foreach (var b in blocks) Document.Document.Blocks.Add(b);
+            }
+            else
+            {
+                foreach (var b in blocks) parent.InsertBefore(caretParagraph!, b);
+            }
+            return headings.Count;
+        }
+
+        /// <summary>
+        /// Create a new paragraph style from the current selection's formatting
+        /// and apply it. Returns false on empty selection.
+        /// Custom styles live for the session (not persisted across restarts).
+        /// </summary>
+        public bool SaveSelectionAsStyle()
+        {
+            var sel = Document.Selection;
+            if (sel.IsEmpty) return false;
+
+            var dialog = new TextInputWindow("New Style", "Style name:", "My Style")
+            {
+                Owner = Window.GetWindow(this),
+            };
+            if (dialog.ShowDialog() != true) return false;
+            var name = dialog.Value;
+
+            var key = $"Custom{++_customStyleCounter}";
+            var style = new Style(typeof(Paragraph));
+            foreach (var prop in new[]
+            {
+                TextElement.FontFamilyProperty,
+                TextElement.FontSizeProperty,
+                TextElement.FontWeightProperty,
+                TextElement.FontStyleProperty,
+                Paragraph.TextAlignmentProperty,
+            })
+            {
+                var value = sel.GetPropertyValue(prop);
+                if (!ReferenceEquals(value, DependencyProperty.UnsetValue) && value is not null)
+                    style.Setters.Add(new Setter(prop, value));
+            }
+
+            Resources.Add(key, style);
+            _customStyles.Add((name, key));
+            ParagraphStylesChanged?.Invoke(this, EventArgs.Empty);
+            ApplyParagraphStyle(key);
+            return true;
+        }
 
         // ---------- Right-click suggestions ----------
 

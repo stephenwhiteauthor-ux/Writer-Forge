@@ -8,9 +8,11 @@ namespace WriterForge.Editor.Windows
     {
         private const double DipsPerInch = 96.0;
 
-        public PageSetupWindow()
+        public PageSetupWindow(string? header = null, string? footer = null)
         {
             InitializeComponent();
+            HeaderBox.Text = header ?? "";
+            FooterBox.Text = footer ?? "";
         }
 
         /// <summary>Page size in DIPs after OK.</summary>
@@ -18,6 +20,12 @@ namespace WriterForge.Editor.Windows
 
         /// <summary>Page margins in DIPs after OK.</summary>
         public Thickness Margins { get; private set; }
+
+        /// <summary>Running header text after OK (null when blank).</summary>
+        public string? Header { get; private set; }
+
+        /// <summary>Running footer text after OK (null when blank).</summary>
+        public string? Footer { get; private set; }
 
         private void Ok_Click(object sender, RoutedEventArgs e)
         {
@@ -35,6 +43,9 @@ namespace WriterForge.Editor.Windows
                 : 1.0;
             var dip = marginInches * DipsPerInch;
             Margins = new Thickness(dip);
+
+            Header = string.IsNullOrWhiteSpace(HeaderBox.Text) ? null : HeaderBox.Text.Trim();
+            Footer = string.IsNullOrWhiteSpace(FooterBox.Text) ? null : FooterBox.Text.Trim();
 
             DialogResult = true;
             Close();

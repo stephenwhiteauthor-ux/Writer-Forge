@@ -21,10 +21,18 @@ public static class PdfExportService
 
     private sealed record Entry(string StyleKey, string Text, bool Bold, bool Italic);
 
-    public static void Export(FlowDocument document, string path, string title)
+    public static void Export(FlowDocument document, string path, string title, string? header = null, string? footer = null)
     {
         var entries = new List<Entry>();
         Collect(document.Blocks, entries);
+
+        var notes = FootnoteService.NotesForOutput(document);
+        if (notes.Count > 0)
+        {
+            entries.Add(new Entry("NotesHeading", FootnoteService.NotesHeading(document), true, false));
+            foreach (var note in notes)
+                entries.Add(new Entry("Normal", note, false, false));
+        }
 
         Document.Create(container =>
         {
@@ -32,6 +40,19 @@ public static class PdfExportService
             {
                 page.Margin(60);
                 page.DefaultTextStyle(x => x.FontFamily("Georgia").FontSize(11));
+                if (!string.IsNullOrWhiteSpace(header))
+                    page.Header().AlignCenter().Text(header).FontSize(10).FontColor(Colors.Grey.Darken1);
+                page.Footer().AlignCenter().Text(x =>
+                {
+                    if (!string.IsNullOrWhiteSpace(footer))
+                    {
+                        x.Span(footer + "    —    ").FontSize(10).FontColor(Colors.Grey.Darken1);
+                    }
+                    x.Span("Page ").FontSize(10).FontColor(Colors.Grey.Darken1);
+                    x.CurrentPageNumber().FontSize(10).FontColor(Colors.Grey.Darken1);
+                    x.Span(" of ").FontSize(10).FontColor(Colors.Grey.Darken1);
+                    x.TotalPages().FontSize(10).FontColor(Colors.Grey.Darken1);
+                });
                 page.Content().Column(col =>
                 {
                     col.Item().Text(title).FontSize(20).Bold().FontColor(Colors.Grey.Darken2);
@@ -49,6 +70,8 @@ public static class PdfExportService
     {
         foreach (var block in blocks)
         {
+            if (block is WF.Paragraph notePara && FootnoteService.IsNoteParagraph(notePara))
+                continue;
             switch (block)
             {
                 case WF.Paragraph para:
@@ -87,6 +110,7 @@ public static class PdfExportService
             case "Heading3": s = s.FontSize(13).Bold(); break;
             case "Quote": s = s.Italic().FontColor(Colors.Grey.Darken1); break;
             case "Caption": s = s.FontSize(9).Italic(); break;
+            case "NotesHeading": s = s.FontSize(14).Bold(); break;
         }
         if (e.Bold) s = s.Bold();
         if (e.Italic) s = s.Italic();
