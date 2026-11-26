@@ -25,7 +25,7 @@ namespace WriterForge.Editor.Controls
 
         private bool _suspendDirty;
         private int _customStyleCounter;
-        private readonly List<(string Name, string Key)> _customStyles = new();
+        private readonly List<CustomStyleRecord> _customStyles = new();
 
         // Proofing (spell + grammar underlines, suggestions)
         private static readonly Regex ProofWordPattern = new(@"[\p{L}][\p{L}'’\-]*", RegexOptions.Compiled);
@@ -104,8 +104,11 @@ namespace WriterForge.Editor.Controls
                 if (path.EndsWith(".wforge", StringComparison.OrdinalIgnoreCase))
                 {
                     var (document, metadata) = WforgePackage.Load(path);
+                    DocumentAnnotations.Apply(document, metadata);
+                    RestoreCustomStyles(metadata);
                     Document.Document = document;
                     Metadata = metadata;
+                    ApplyImportedStyles();
                 }
                 else if (path.EndsWith(".docx", StringComparison.OrdinalIgnoreCase))
                 {
@@ -135,6 +138,10 @@ namespace WriterForge.Editor.Controls
         {
             if (path.EndsWith(".wforge", StringComparison.OrdinalIgnoreCase))
             {
+                DocumentAnnotations.Collect(Document.Document, Metadata);
+                Metadata.CustomStyles = _customStyles.Count > 0
+                    ? new List<CustomStyleRecord>(_customStyles)
+                    : null;
                 WforgePackage.Save(path, Document.Document, Metadata);
             }
             else if (path.EndsWith(".docx", StringComparison.OrdinalIgnoreCase))
@@ -1299,7 +1306,7 @@ namespace WriterForge.Editor.Controls
 
         /// <summary>All selectable paragraph styles: built-ins plus session custom styles.</summary>
         public IReadOnlyList<(string Name, string Key)> GetParagraphStyles() =>
-            BuiltInStyles.Concat(_customStyles).ToList();
+            BuiltInStyles.Concat(_customStyles.Select(r => (r.Name, r.Key))).ToList();
 
         // ---------- Table of contents & custom styles ----------
 
@@ -1377,10 +1384,61 @@ namespace WriterForge.Editor.Controls
             }
 
             Resources.Add(key, style);
-            _customStyles.Add((name, key));
+            _customStyles.Add(BuildStyleRecord(name, key, sel));
             ParagraphStylesChanged?.Invoke(this, EventArgs.Empty);
             ApplyParagraphStyle(key);
             return true;
+        }
+
+        /// <summary>Snapshot the selection's formatting into a persistable style record.</summary>
+        private static CustomStyleRecord BuildStyleRecord(string name, string key, TextSelection sel)
+        {
+            var family = sel.GetPropertyValue(TextElement.FontFamilyProperty) as FontFamily;
+            var size = sel.GetPropertyValue(TextElement.FontSizeProperty) as double?;
+            var weight = sel.GetPropertyValue(TextElement.FontWeightProperty) as FontWeight?;
+            var fontStyle = sel.GetPropertyValue(TextElement.FontStyleProperty) as FontStyle?;
+            var align = sel.GetPropertyValue(Paragraph.TextAlignmentProperty) as TextAlignment?;
+
+            return new CustomStyleRecord
+            {
+                Name = name,
+                Key = key,
+                FontFamily = family?.Source,
+                FontSize = size,
+                Bold = weight == FontWeights.Bold,
+                Italic = fontStyle == FontStyles.Italic,
+                Alignment = align?.ToString(),
+            };
+        }
+
+        /// <summary>Recreate custom styles saved in .wforge metadata after a load.</summary>
+        private void RestoreCustomStyles(DocumentMetadata metadata)
+        {
+            if (metadata.CustomStyles is not { Count: > 0 } records) return;
+
+            foreach (var r in records)
+            {
+                var style = new Style(typeof(Paragraph));
+                if (r.FontFamily is not null)
+                    style.Setters.Add(new Setter(TextElement.FontFamilyProperty, new FontFamily(r.FontFamily)));
+                if (r.FontSize is not null)
+                    style.Setters.Add(new Setter(TextElement.FontSizeProperty, r.FontSize.Value));
+                style.Setters.Add(new Setter(TextElement.FontWeightProperty,
+                    r.Bold ? FontWeights.Bold : FontWeights.Normal));
+                style.Setters.Add(new Setter(TextElement.FontStyleProperty,
+                    r.Italic ? FontStyles.Italic : FontStyles.Normal));
+                if (Enum.TryParse<TextAlignment>(r.Alignment, out var align))
+                    style.Setters.Add(new Setter(Paragraph.TextAlignmentProperty, align));
+
+                if (!Resources.Contains(r.Key))
+                    Resources.Add(r.Key, style);
+                if (!_customStyles.Any(c => c.Key == r.Key))
+                    _customStyles.Add(r);
+                if (r.Key.StartsWith("Custom", StringComparison.Ordinal) &&
+                    int.TryParse(r.Key["Custom".Length..], out var n))
+                    _customStyleCounter = Math.Max(_customStyleCounter, n);
+            }
+            ParagraphStylesChanged?.Invoke(this, EventArgs.Empty);
         }
 
         // ---------- Right-click suggestions ----------

@@ -6,6 +6,36 @@ using System.Windows.Documents;
 
 namespace WriterForge.Editor.Documents
 {
+    /// <summary>Per-paragraph style annotation: which paragraphs carry a named style key.</summary>
+    public sealed class ParaStyleRecord
+    {
+        /// <summary>Index into the flattened paragraph order (BlockTree.AllParagraphs).</summary>
+        public int Index { get; set; }
+        public string StyleKey { get; set; } = "";
+        /// <summary>Footnote/endnote id when the paragraph is a note (0 otherwise).</summary>
+        public int FootnoteId { get; set; }
+    }
+
+    /// <summary>Footnote marker location: paragraph ordinal + char offset + id.</summary>
+    public sealed class FootnoteMarkerRecord
+    {
+        public int ParagraphIndex { get; set; }
+        public int Offset { get; set; }
+        public int Id { get; set; }
+    }
+
+    /// <summary>Serializable definition of a session custom style.</summary>
+    public sealed class CustomStyleRecord
+    {
+        public string Name { get; set; } = "";
+        public string Key { get; set; } = "";
+        public string? FontFamily { get; set; }
+        public double? FontSize { get; set; }
+        public bool Bold { get; set; }
+        public bool Italic { get; set; }
+        public string? Alignment { get; set; }
+    }
+
     /// <summary>Metadata stored alongside the document inside a .wforge package.</summary>
     public sealed class DocumentMetadata
     {
@@ -17,6 +47,13 @@ namespace WriterForge.Editor.Documents
         public string? Footer { get; set; }
         public DateTimeOffset CreatedUtc { get; set; } = DateTimeOffset.UtcNow;
         public DateTimeOffset ModifiedUtc { get; set; } = DateTimeOffset.UtcNow;
+
+        /// <summary>Named-style tags per paragraph (RTF doesn't preserve attached properties).</summary>
+        public List<ParaStyleRecord>? ParagraphStyles { get; set; }
+        /// <summary>Footnote/endnote marker positions.</summary>
+        public List<FootnoteMarkerRecord>? FootnoteMarkers { get; set; }
+        /// <summary>Session custom paragraph styles.</summary>
+        public List<CustomStyleRecord>? CustomStyles { get; set; }
     }
 
     /// <summary>
