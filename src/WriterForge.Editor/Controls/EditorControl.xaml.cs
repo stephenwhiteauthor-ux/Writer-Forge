@@ -76,6 +76,7 @@ namespace WriterForge.Editor.Controls
 
             _pageTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
             _pageTimer.Tick += (_, _) => { _pageTimer.Stop(); UpdatePageCount(); };
+            Ruler.SizeChanged += (_, _) => { if (_ruler) DrawRuler(); };
         }
 
         /// <summary>Access to the underlying document for services (spell check, stats, export).</summary>
@@ -220,19 +221,250 @@ namespace WriterForge.Editor.Controls
             return paras.Count - (lastEmpty ? 1 : 0);
         }
 
+        private bool _pageView;
+        private bool _navPane;
+        private bool _gridlines;
+        private bool _ruler;
+        private bool _navBuilding;
+        private string _navSignature = "";
+        private int _rulerDragSide;
+
+        // ---------- View options ----------
+
+        /// <summary>Toggle the headings navigation pane.</summary>
+        public void SetNavigationPane(bool on)
+        {
+            _navPane = on;
+            NavPane.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            if (on) RefreshNav();
+        }
+
+        /// <summary>Toggle table gridlines (borders) document-wide.</summary>
+        public void SetGridlines(bool on)
+        {
+            _gridlines = on;
+            ApplyGridlines();
+        }
+
+        /// <summary>Toggle the page ruler with draggable margin markers.</summary>
+        public void SetRuler(bool on)
+        {
+            _ruler = on;
+            Ruler.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            if (on) DrawRuler();
+        }
+
+        public void SetPageView(bool on)
+        {
+            _pageView = on;
+            Document.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+            PagePreview.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            Ruler.Visibility = on || !_ruler ? Visibility.Collapsed : Visibility.Visible;
+            if (on) UpdatePageCount();
+            else if (_ruler) DrawRuler();
+        }
+
+        public bool IsPageView => _pageView;
+
         /// <summary>Recompute the live page count (debounced; engine is too heavy per keystroke).</summary>
         private void UpdatePageCount()
         {
             try
             {
-                var pages = PaginationEngine.Paginate(Document.Document);
+                var pages = PaginationEngine.Paginate(Document.Document, Metadata.Header, Metadata.Footer);
                 var footnotes = pages.Sum(p => p.Footnotes.Count);
                 PageCountText.Text = $"Pages: {pages.Count}" + (footnotes > 0 ? $"    Notes: {footnotes}" : "");
+                if (_pageView) PagePreview.ShowPages(pages, Document.Document);
+                if (_navPane) RefreshNav();
+                if (_ruler) DrawRuler();
+                if (_gridlines) ApplyGridlines();
             }
             catch
             {
                 PageCountText.Text = "";
             }
+        }
+
+        // ---------- Navigation pane ----------
+
+        private void RefreshNav()
+        {
+            var headings = BlockTree.AllParagraphs(Document.Document)
+                .Select(p => (Para: p, Key: EditorTags.GetStyleKey(p)))
+                .Where(x => x.Key is "Heading1" or "Heading2" or "Heading3")
+                .Select(x =>
+                {
+                    var text = string.Concat(DocumentTextMap.EnumerateRuns(x.Para.Inlines).Select(r => r.Text)).Trim();
+                    var level = x.Key == "Heading1" ? 0 : x.Key == "Heading2" ? 1 : 2;
+                    return (Text: text, Para: x.Para, Level: level);
+                })
+                .Where(x => x.Text.Length > 0)
+                .ToList();
+
+            var signature = string.Join("|", headings.Select(h => $"{h.Level}:{h.Text}"));
+            if (signature == _navSignature) return;
+            _navSignature = signature;
+
+            _navBuilding = true;
+            try
+            {
+                NavList.Items.Clear();
+                foreach (var h in headings)
+                {
+                    NavList.Items.Add(new ListBoxItem
+                    {
+                        Content = new TextBlock
+                        {
+                            Text = h.Text,
+                            FontSize = h.Level == 0 ? 14 : h.Level == 1 ? 13 : 12,
+                            FontWeight = h.Level == 0 ? FontWeights.SemiBold : FontWeights.Normal,
+                            TextTrimming = TextTrimming.CharacterEllipsis,
+                            Margin = new Thickness(h.Level * 14, 3, 0, 3),
+                        },
+                        Tag = h.Para,
+                        Padding = new Thickness(8, 2, 8, 2),
+                    });
+                }
+            }
+            finally
+            {
+                _navBuilding = false;
+            }
+        }
+
+        private void NavList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_navBuilding) return;
+            if (NavList.SelectedItem is ListBoxItem { Tag: Paragraph para })
+            {
+                Document.CaretPosition = para.ContentStart;
+                para.BringIntoView();
+            }
+        }
+
+        // ---------- Gridlines ----------
+
+        private void ApplyGridlines()
+        {
+            var thickness = _gridlines ? new Thickness(0.5) : new Thickness(0);
+            foreach (var table in AllTables(Document.Document.Blocks))
+            {
+                table.BorderThickness = thickness;
+                foreach (TableRowGroup group in table.RowGroups)
+                foreach (TableRow row in group.Rows)
+                foreach (TableCell cell in row.Cells)
+                    cell.BorderThickness = thickness;
+            }
+        }
+
+        private static IEnumerable<Table> AllTables(IEnumerable<Block> blocks)
+        {
+            foreach (var block in blocks)
+            {
+                switch (block)
+                {
+                    case Table table:
+                        yield return table;
+                        foreach (TableRowGroup group in table.RowGroups)
+                        foreach (TableRow row in group.Rows)
+                        foreach (TableCell cell in row.Cells)
+                        foreach (var t in AllTables(cell.Blocks)) yield return t;
+                        break;
+                    case Section section:
+                        foreach (var t in AllTables(section.Blocks)) yield return t;
+                        break;
+                    case List list:
+                        foreach (var item in list.ListItems)
+                        foreach (var t in AllTables(item.Blocks)) yield return t;
+                        break;
+                }
+            }
+        }
+
+        // ---------- Ruler ----------
+
+        private double PageWidth => Document.Document.PageWidth > 0 ? Document.Document.PageWidth : 816;
+
+        private void DrawRuler()
+        {
+            if (Ruler.ActualWidth <= 0) return;
+            Ruler.Children.Clear();
+
+            var pageW = PageWidth;
+            var scale = Ruler.ActualWidth / pageW;
+            var pad = Document.Document.PagePadding;
+
+            // Minor ticks every 1/8 inch (12px at 96dpi), major every 1/2 inch.
+            for (var x = 0.0; x <= pageW; x += 12)
+            {
+                var major = Math.Abs(x % 48) < 0.01;
+                Ruler.Children.Add(new System.Windows.Shapes.Line
+                {
+                    X1 = x * scale, X2 = x * scale,
+                    Y1 = major ? 10 : 13, Y2 = 18,
+                    Stroke = Brushes.Gray,
+                    StrokeThickness = 1,
+                });
+            }
+
+            // Margin markers.
+            AddMarginMarker(pad.Left * scale, "L");
+            AddMarginMarker((pageW - pad.Right) * scale, "R");
+        }
+
+        private void AddMarginMarker(double x, string kind)
+        {
+            var rect = new System.Windows.Shapes.Rectangle
+            {
+                Width = 5,
+                Height = 8,
+                Fill = new SolidColorBrush(Color.FromRgb(0x2B, 0x6C, 0xB0)),
+                Tag = kind,
+                Cursor = Cursors.SizeWE,
+            };
+            Canvas.SetLeft(rect, x - 2.5);
+            Canvas.SetTop(rect, 0);
+            Ruler.Children.Add(rect);
+        }
+
+        private void Ruler_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            var pos = e.GetPosition(Ruler);
+            var pageW = PageWidth;
+            var scale = Ruler.ActualWidth / pageW;
+            var pad = Document.Document.PagePadding;
+            var leftX = pad.Left * scale;
+            var rightX = (pageW - pad.Right) * scale;
+
+            if (Math.Abs(pos.X - leftX) < 6) _rulerDragSide = 1;
+            else if (Math.Abs(pos.X - rightX) < 6) _rulerDragSide = 2;
+            if (_rulerDragSide != 0) Ruler.CaptureMouse();
+        }
+
+        private void Ruler_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (_rulerDragSide == 0 || e.LeftButton != MouseButtonState.Pressed) return;
+            var pos = e.GetPosition(Ruler);
+            var pageW = PageWidth;
+            var scale = Ruler.ActualWidth / pageW;
+            var pad = Document.Document.PagePadding;
+            var margin = Math.Clamp(pos.X / scale, 0, pageW / 2);
+
+            var newPad = _rulerDragSide == 1
+                ? new Thickness(margin, pad.Top, pad.Right, pad.Bottom)
+                : new Thickness(pad.Left, pad.Top, pageW - margin, pad.Bottom);
+            if (newPad == pad) return;
+
+            var w = Document.Document.PageWidth > 0 ? Document.Document.PageWidth : 816;
+            var h = Document.Document.PageHeight > 0 ? Document.Document.PageHeight : 1056;
+            ApplyPageSetup(new Size(w, h), newPad, Metadata.Header, Metadata.Footer);
+            DrawRuler();
+        }
+
+        private void Ruler_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            _rulerDragSide = 0;
+            Ruler.ReleaseMouseCapture();
         }
 
         // ---------- Toolbar sync ----------

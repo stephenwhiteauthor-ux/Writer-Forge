@@ -445,6 +445,34 @@ public partial class MainWindow : RibbonWindow
     private void PageCount_Click(object sender, RoutedEventArgs e) =>
         MessageBox.Show(Editor.GetPaginationDebug(), "Pagination", MessageBoxButton.OK, MessageBoxImage.Information);
 
+    private void PageViewToggle_Click(object sender, RoutedEventArgs e)
+    {
+        var on = PageViewToggle.IsChecked == true;
+        Editor.SetPageView(on);
+        if (!on && ReadModeToggle.IsChecked == true)
+        {
+            ReadModeToggle.IsChecked = false;
+            MainRibbon.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void ReadModeToggle_Click(object sender, RoutedEventArgs e)
+    {
+        var on = ReadModeToggle.IsChecked == true;
+        MainRibbon.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+        Editor.SetPageView(on);
+        PageViewToggle.IsChecked = on;
+    }
+
+    private void NavPaneToggle_Click(object sender, RoutedEventArgs e) =>
+        Editor.SetNavigationPane(NavPaneToggle.IsChecked == true);
+
+    private void RulerToggle_Click(object sender, RoutedEventArgs e) =>
+        Editor.SetRuler(RulerToggle.IsChecked == true);
+
+    private void GridlinesToggle_Click(object sender, RoutedEventArgs e) =>
+        Editor.SetGridlines(GridlinesToggle.IsChecked == true);
+
     private void InsertFootnote_Click(object sender, RoutedEventArgs e) => Editor.InsertFootnote();
     private void InsertEndnote_Click(object sender, RoutedEventArgs e) => Editor.InsertFootnote(endnote: true);
 

@@ -1,4 +1,3 @@
-using System.IO;
 using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Media.TextFormatting;
@@ -75,23 +74,16 @@ namespace WriterForge.Editor.Services
             for (var i = 0; i < sourceParas.Count; i++)
             {
                 var sp = sourceParas[i];
-                var reliable = countsMatch && TextEquals(sp, cloneParas[i]);
+                var reliable = countsMatch
+                    && !HasInlineObjects(sp)
+                    && TextEquals(sp, cloneParas[i]);
                 map[sp] = MeasureParagraph(sp, reliable ? cloneParas[i] : null);
             }
             return new MeasuredDocument { ByParagraph = map, ColumnWidth = columnWidth };
         }
 
-        private static FlowDocument CloneDocument(FlowDocument source)
-        {
-            var clone = new FlowDocument();
-            using var ms = new MemoryStream();
-            var range = new TextRange(source.ContentStart, source.ContentEnd);
-            range.Save(ms, DataFormats.Rtf);
-            ms.Position = 0;
-            var target = new TextRange(clone.ContentStart, clone.ContentEnd);
-            target.Load(ms, DataFormats.Rtf);
-            return clone;
-        }
+        private static FlowDocument CloneDocument(FlowDocument source) =>
+            DocumentCopier.Copy(source);
 
         private static ParagraphMeasure MeasureParagraph(Paragraph source, Paragraph? clone)
         {
@@ -222,5 +214,19 @@ namespace WriterForge.Editor.Services
 
         private static bool TextEquals(Paragraph a, Paragraph b) =>
             PlainText(a) == PlainText(b);
+
+        /// <summary>True when the paragraph contains an image or other inline UI element.</summary>
+        private static bool HasInlineObjects(Paragraph paragraph)
+        {
+            var stack = new Stack<Inline>(paragraph.Inlines);
+            while (stack.Count > 0)
+            {
+                var inline = stack.Pop();
+                if (inline is InlineUIContainer) return true;
+                if (inline is Span span)
+                    foreach (var child in span.Inlines) stack.Push(child);
+            }
+            return false;
+        }
     }
 }

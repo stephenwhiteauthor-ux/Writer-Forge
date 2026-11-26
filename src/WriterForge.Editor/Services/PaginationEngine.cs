@@ -76,6 +76,9 @@ namespace WriterForge.Editor.Services
 
             foreach (var para in BlockTree.AllParagraphs(document))
             {
+                // Footnote paragraphs render in the page-bottom area, not the body flow.
+                // (Endnote paragraphs stay in the flow — they collect at the document end.)
+                if (EditorTags.GetStyleKey(para) == FootnoteService.FootnoteStyleKey) continue;
                 if (!measured.ByParagraph.TryGetValue(para, out var pm)) continue;
 
                 // Space before: suppressed at the top of a fresh page.

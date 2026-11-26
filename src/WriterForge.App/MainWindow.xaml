@@ -181,6 +181,19 @@
                 </RibbonGroup>
             </RibbonTab>
 
+            <!-- ================= VIEW ================= -->
+            <RibbonTab Header="View">
+                <RibbonGroup Header="Document Views">
+                    <RibbonToggleButton x:Name="PageViewToggle" Label="Page View" ToolTip="Show document as pages" IsChecked="False" Click="PageViewToggle_Click"/>
+                    <RibbonToggleButton x:Name="ReadModeToggle" Label="Read Mode" ToolTip="Page view without ribbon" IsChecked="False" Click="ReadModeToggle_Click"/>
+                </RibbonGroup>
+                <RibbonGroup Header="Show">
+                    <RibbonToggleButton x:Name="NavPaneToggle" Label="Navigation Pane" ToolTip="Headings sidebar" IsChecked="False" Click="NavPaneToggle_Click"/>
+                    <RibbonToggleButton x:Name="RulerToggle" Label="Ruler" ToolTip="Page ruler with margin markers" IsChecked="False" Click="RulerToggle_Click"/>
+                    <RibbonToggleButton x:Name="GridlinesToggle" Label="Gridlines" ToolTip="Show table borders" IsChecked="False" Click="GridlinesToggle_Click"/>
+                </RibbonGroup>
+            </RibbonTab>
+
             <!-- ================= REVIEW ================= -->
             <RibbonTab Header="Review">
                 <RibbonGroup Header="Proofing">
