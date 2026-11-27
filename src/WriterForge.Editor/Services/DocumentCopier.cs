@@ -67,9 +67,33 @@ namespace WriterForge.Editor.Services
             Run run => CopyRun(run),
             Span span => CopySpan(span),
             LineBreak => new LineBreak(),
-            InlineUIContainer => new InlineUIContainer(),
+            InlineUIContainer container => CopyUIContainer(container),
             _ => null,
         };
+
+        /// <summary>
+        /// Clone an inline UI container. Image children are re-created sharing
+        /// the (frozen) bitmap source; other UI elements become empty
+        /// containers — paragraphs containing them measure as unreliable.
+        /// </summary>
+        private static InlineUIContainer CopyUIContainer(InlineUIContainer src)
+        {
+            var dst = new InlineUIContainer();
+            if (src.Child is System.Windows.Controls.Image img)
+            {
+                var copy = new System.Windows.Controls.Image
+                {
+                    Source = img.Source,
+                    Stretch = img.Stretch,
+                    MaxWidth = img.MaxWidth,
+                    MaxHeight = img.MaxHeight,
+                };
+                if (!double.IsNaN(img.Width)) copy.Width = img.Width;
+                if (!double.IsNaN(img.Height)) copy.Height = img.Height;
+                dst.Child = copy;
+            }
+            return dst;
+        }
 
         private static Run CopyRun(Run src)
         {
@@ -189,7 +213,7 @@ namespace WriterForge.Editor.Services
                     kept.Add(new LineBreak());
                     break;
                 case InlineUIContainer:
-                    kept.Add(new InlineUIContainer());
+                    if (CopyInline(inline) is { } ci) kept.Add(ci);
                     break;
             }
         }

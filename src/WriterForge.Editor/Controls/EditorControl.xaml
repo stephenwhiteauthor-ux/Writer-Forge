@@ -93,6 +93,9 @@
                                 <MenuItem Header="Insert column left" Tag="table" Click="CtxInsColLeft_Click"/>
                                 <MenuItem Header="Insert column right" Tag="table" Click="CtxInsColRight_Click"/>
                                 <Separator Tag="table"/>
+                                <MenuItem Header="Merge cells" Tag="table" Click="CtxMergeCells_Click"/>
+                                <MenuItem Header="Split cells" Tag="table" Click="CtxSplitCells_Click"/>
+                                <Separator Tag="table"/>
                                 <MenuItem Header="Delete row" Tag="table" Click="CtxDelRow_Click"/>
                                 <MenuItem Header="Delete column" Tag="table" Click="CtxDelCol_Click"/>
                                 <MenuItem Header="Delete table" Tag="table" Click="CtxDelTable_Click"/>

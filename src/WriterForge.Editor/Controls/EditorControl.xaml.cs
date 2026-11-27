@@ -94,6 +94,12 @@ namespace WriterForge.Editor.Controls
                 _pageEditTimer.Stop();
                 _pageEditTimer.Start();
             };
+            PagePreview.HeaderFooterEdited += (h, f) =>
+            {
+                Metadata.Header = h;
+                Metadata.Footer = f;
+                SetDirty(true);
+            };
         }
 
         /// <summary>Access to the underlying document for services (spell check, stats, export).</summary>
@@ -1295,6 +1301,8 @@ namespace WriterForge.Editor.Controls
             Metadata.Header = string.IsNullOrWhiteSpace(header) ? null : header.Trim();
             Metadata.Footer = string.IsNullOrWhiteSpace(footer) ? null : footer.Trim();
             SetDirty(true);
+            _pageTimer.Stop();
+            _pageTimer.Start();
         }
 
         /// <summary>Run the pagination engine; returns page/footnote counts for diagnostics.</summary>
@@ -1762,6 +1770,92 @@ namespace WriterForge.Editor.Controls
             return true;
         }
 
+        /// <summary>
+        /// Merge the caret cell with its right neighbour (or the cell below
+        /// when there is none). Content of the absorbed cell is appended.
+        /// </summary>
+        public bool MergeCells()
+        {
+            var ctx = TableContextAtCaret();
+            if (ctx is null) return false;
+            var (_, group, row, cell, rowIndex, colIndex) = ctx.Value;
+
+            if (colIndex + 1 < row.Cells.Count)
+            {
+                var next = row.Cells[colIndex + 1];
+                if (cell.RowSpan == 1 && next.RowSpan == 1)
+                {
+                    cell.ColumnSpan += next.ColumnSpan;
+                    MoveCellContent(next, cell);
+                    row.Cells.RemoveAt(colIndex + 1);
+                    NoteStructureChanged();
+                    return true;
+                }
+            }
+
+            if (rowIndex + 1 < group.Rows.Count && colIndex < group.Rows[rowIndex + 1].Cells.Count)
+            {
+                var belowRow = group.Rows[rowIndex + 1];
+                var below = belowRow.Cells[colIndex];
+                if (below.RowSpan == 1 && below.ColumnSpan == cell.ColumnSpan)
+                {
+                    cell.RowSpan += 1;
+                    MoveCellContent(below, cell);
+                    belowRow.Cells.RemoveAt(colIndex);
+                    NoteStructureChanged();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Split a merged cell back into a ColumnSpan × RowSpan grid of
+        /// single cells. Content stays in the top-left cell.
+        /// </summary>
+        public bool SplitCells()
+        {
+            var ctx = TableContextAtCaret();
+            if (ctx is null) return false;
+            var (_, group, _, cell, rowIndex, colIndex) = ctx.Value;
+            var cs = cell.ColumnSpan;
+            var rs = cell.RowSpan;
+            if (cs <= 1 && rs <= 1) return false;
+            if (rowIndex + rs > group.Rows.Count) return false;
+
+            // Lower rows lack the merged region's cells — pad any that are
+            // too short to reach colIndex, then insert cs cells there.
+            for (var r = 1; r < rs; r++)
+            {
+                var target = group.Rows[rowIndex + r];
+                while (target.Cells.Count < colIndex)
+                    target.Cells.Add(NewTableCell());
+                for (var c = 0; c < cs; c++)
+                    target.Cells.Insert(colIndex + c, NewTableCell());
+            }
+            var firstRow = group.Rows[rowIndex];
+            for (var c = 1; c < cs; c++)
+                firstRow.Cells.Insert(colIndex + c, NewTableCell());
+
+            cell.ColumnSpan = 1;
+            cell.RowSpan = 1;
+            NoteStructureChanged();
+            return true;
+        }
+
+        /// <summary>Move all blocks from one cell into another (replacing a lone empty paragraph).</summary>
+        private static void MoveCellContent(TableCell from, TableCell to)
+        {
+            var existing = to.Blocks.ToList();
+            if (existing.Count == 1 && existing[0] is Paragraph p && DocumentCopier.TextLength(p) == 0)
+                to.Blocks.Remove(existing[0]);
+            foreach (var b in from.Blocks.ToList())
+            {
+                from.Blocks.Remove(b);
+                to.Blocks.Add(b);
+            }
+        }
+
         // ---------- Context menu ----------
 
         private void Document_ContextMenuOpening(object sender, ContextMenuEventArgs e)
@@ -1790,6 +1884,8 @@ namespace WriterForge.Editor.Controls
         private void CtxDelRow_Click(object sender, RoutedEventArgs e) => DeleteTableRow();
         private void CtxDelCol_Click(object sender, RoutedEventArgs e) => DeleteTableColumn();
         private void CtxDelTable_Click(object sender, RoutedEventArgs e) => DeleteTable();
+        private void CtxMergeCells_Click(object sender, RoutedEventArgs e) => MergeCells();
+        private void CtxSplitCells_Click(object sender, RoutedEventArgs e) => SplitCells();
 
         // ---------- Footnotes / endnotes ----------
 

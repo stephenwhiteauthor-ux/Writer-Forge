@@ -17,10 +17,18 @@ namespace WriterForge.Editor.Controls
     {
         private FlowDocument? _source;
         private readonly List<RichTextBox> _bodyEditors = new();
+        private readonly List<TextBox> _headerBoxes = new();
+        private readonly List<TextBox> _footerBoxes = new();
         private bool _editable;
+        private bool _hfSync;
+        private string _headerText = "";
+        private string _footerText = "";
 
         /// <summary>Raised when any page-body editor's text changes.</summary>
         public event EventHandler? PagesEdited;
+
+        /// <summary>Raised when a page header/footer is edited: (header, footer) raw text.</summary>
+        public event Action<string?, string?>? HeaderFooterEdited;
 
         public PagedPreview()
         {
@@ -35,6 +43,10 @@ namespace WriterForge.Editor.Controls
             _source = source;
             _editable = editable;
             _bodyEditors.Clear();
+            _headerBoxes.Clear();
+            _footerBoxes.Clear();
+            _headerText = pages.Count > 0 ? pages[0].Header ?? "" : "";
+            _footerText = pages.Count > 0 ? pages[0].Footer ?? "" : "";
             PagesPanel.Children.Clear();
             for (var i = 0; i < pages.Count; i++)
                 PagesPanel.Children.Add(BuildPage(pages[i], pages.Count, i, ordinals));
@@ -110,16 +122,21 @@ namespace WriterForge.Editor.Controls
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });   // footnotes
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });   // footer
 
-            var header = new TextBlock
+            var headerBox = new TextBox
             {
                 Text = page.Header ?? "",
                 FontSize = 10,
                 Foreground = Brushes.Gray,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(0),
                 TextAlignment = TextAlignment.Center,
-                Margin = new Thickness(0, 2, 0, 4),
+                Width = page.ContentWidth,
             };
-            Grid.SetRow(header, 0);
-            grid.Children.Add(header);
+            headerBox.TextChanged += HeaderBox_TextChanged;
+            _headerBoxes.Add(headerBox);
+            Grid.SetRow(headerBox, 0);
+            grid.Children.Add(headerBox);
 
             var sliceDoc = _source is null
                 ? new FlowDocument()
@@ -180,22 +197,70 @@ namespace WriterForge.Editor.Controls
                 grid.Children.Add(notesHost);
             }
 
-            var footerText = page.Footer is { Length: > 0 } f
-                ? $"{f}    —    Page {index + 1} of {pageCount}"
-                : $"Page {index + 1} of {pageCount}";
-            var footer = new TextBlock
+            var footerPanel = new StackPanel
             {
-                Text = footerText,
-                FontSize = 10,
-                Foreground = Brushes.Gray,
-                TextAlignment = TextAlignment.Center,
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 4, 0, 2),
             };
-            Grid.SetRow(footer, 3);
-            grid.Children.Add(footer);
+            var footerBox = new TextBox
+            {
+                Text = page.Footer ?? "",
+                Width = page.ContentWidth * 0.5,
+                FontSize = 10,
+                Foreground = Brushes.Gray,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(0),
+                TextAlignment = TextAlignment.Center,
+            };
+            footerBox.TextChanged += FooterBox_TextChanged;
+            _footerBoxes.Add(footerBox);
+            footerPanel.Children.Add(footerBox);
+            var numText = page.Footer is { Length: > 0 }
+                ? $"    —    Page {index + 1} of {pageCount}"
+                : $"Page {index + 1} of {pageCount}";
+            footerPanel.Children.Add(new TextBlock
+            {
+                Text = numText,
+                FontSize = 10,
+                Foreground = Brushes.Gray,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            Grid.SetRow(footerPanel, 3);
+            grid.Children.Add(footerPanel);
 
             border.Child = grid;
             return border;
+        }
+
+        private static string? Norm(string? s) =>
+            string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+        private void HeaderBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_hfSync || sender is not TextBox box) return;
+            _headerText = box.Text;
+            _hfSync = true;
+            try
+            {
+                foreach (var b in _headerBoxes) b.Text = _headerText;
+            }
+            finally { _hfSync = false; }
+            HeaderFooterEdited?.Invoke(Norm(_headerText), Norm(_footerText));
+        }
+
+        private void FooterBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_hfSync || sender is not TextBox box) return;
+            _footerText = box.Text;
+            _hfSync = true;
+            try
+            {
+                foreach (var b in _footerBoxes) b.Text = _footerText;
+            }
+            finally { _hfSync = false; }
+            HeaderFooterEdited?.Invoke(Norm(_headerText), Norm(_footerText));
         }
     }
 }

@@ -187,6 +187,10 @@
                     <RibbonButton Label="Insert Right" Click="InsertColRight_Click"/>
                     <RibbonButton Label="Delete Column" Click="DeleteColumn_Click"/>
                 </RibbonGroup>
+                <RibbonGroup Header="Cells">
+                    <RibbonButton Label="Merge Cells" Click="MergeCells_Click"/>
+                    <RibbonButton Label="Split Cells" Click="SplitCells_Click"/>
+                </RibbonGroup>
                 <RibbonGroup Header="Table">
                     <RibbonButton Label="Delete Table" Click="DeleteTable_Click"/>
                 </RibbonGroup>

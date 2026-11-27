@@ -290,14 +290,15 @@ namespace WriterForge.Editor.Services
         private static bool TextEquals(Paragraph a, Paragraph b) =>
             PlainText(a) == PlainText(b);
 
-        /// <summary>True when the paragraph contains an image or other inline UI element.</summary>
+        /// <summary>True when the paragraph contains a UI element the copier can't reproduce.</summary>
         private static bool HasInlineObjects(Paragraph paragraph)
         {
             var stack = new Stack<Inline>(paragraph.Inlines);
             while (stack.Count > 0)
             {
                 var inline = stack.Pop();
-                if (inline is InlineUIContainer) return true;
+                if (inline is InlineUIContainer c && c.Child is not System.Windows.Controls.Image)
+                    return true;
                 if (inline is Span span)
                     foreach (var child in span.Inlines) stack.Push(child);
             }

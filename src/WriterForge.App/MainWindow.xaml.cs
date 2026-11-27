@@ -487,6 +487,8 @@ public partial class MainWindow : RibbonWindow
     private void DeleteRow_Click(object sender, RoutedEventArgs e) => TableOp(Editor.DeleteTableRow());
     private void DeleteColumn_Click(object sender, RoutedEventArgs e) => TableOp(Editor.DeleteTableColumn());
     private void DeleteTable_Click(object sender, RoutedEventArgs e) => TableOp(Editor.DeleteTable());
+    private void MergeCells_Click(object sender, RoutedEventArgs e) => TableOp(Editor.MergeCells());
+    private void SplitCells_Click(object sender, RoutedEventArgs e) => TableOp(Editor.SplitCells());
 
     private void InsertToc_Click(object sender, RoutedEventArgs e)
     {
