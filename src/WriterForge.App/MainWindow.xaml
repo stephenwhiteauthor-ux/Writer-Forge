@@ -199,9 +199,20 @@
             <!-- ================= VIEW ================= -->
             <RibbonTab Header="View">
                 <RibbonGroup Header="Document Views">
+                    <RibbonToggleButton x:Name="DraftToggle" Label="Draft" ToolTip="Editing view without page chrome" IsChecked="True" Click="DraftToggle_Click"/>
                     <RibbonToggleButton x:Name="PrintLayoutToggle" Label="Print Layout" ToolTip="Edit directly on pages" IsChecked="False" Click="PrintLayoutToggle_Click"/>
                     <RibbonToggleButton x:Name="ReadModeToggle" Label="Read Mode" ToolTip="Page view without ribbon" IsChecked="False" Click="ReadModeToggle_Click"/>
                     <RibbonToggleButton x:Name="OutlineToggle" Label="Outline" ToolTip="Heading outline for restructuring" IsChecked="False" Click="OutlineToggle_Click"/>
+                </RibbonGroup>
+                <RibbonGroup Header="Zoom">
+                    <ComboBox x:Name="ZoomBox" Width="80" SelectionChanged="ZoomBox_SelectionChanged">
+                        <ComboBoxItem Content="50%" Tag="0.5"/>
+                        <ComboBoxItem Content="75%" Tag="0.75"/>
+                        <ComboBoxItem Content="100%" Tag="1" IsSelected="True"/>
+                        <ComboBoxItem Content="125%" Tag="1.25"/>
+                        <ComboBoxItem Content="150%" Tag="1.5"/>
+                        <ComboBoxItem Content="200%" Tag="2"/>
+                    </ComboBox>
                 </RibbonGroup>
                 <RibbonGroup Header="Show">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">

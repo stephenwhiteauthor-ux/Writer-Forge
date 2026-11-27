@@ -305,6 +305,29 @@ namespace WriterForge.Editor.Controls
 
         public bool IsOutlineView => _outlineView;
 
+        // ---------- Zoom ----------
+
+        private double _zoom = 1.0;
+
+        /// <summary>Set editing-view zoom (0.5–3.0). Text reflows at the new width.</summary>
+        public void SetZoom(double zoom)
+        {
+            _zoom = Math.Clamp(zoom, 0.5, 3.0);
+            ApplyZoom();
+        }
+
+        public double Zoom => _zoom;
+
+        private void ApplyZoom()
+        {
+            if (EditorHost.ActualWidth <= 0) return;
+            Document.Width = EditorHost.ActualWidth / _zoom;
+            Document.HorizontalAlignment = HorizontalAlignment.Left;
+            Document.LayoutTransform = new ScaleTransform(_zoom, _zoom);
+        }
+
+        private void EditorHost_SizeChanged(object sender, SizeChangedEventArgs e) => ApplyZoom();
+
         /// <summary>Recompute the live page count (debounced; engine is too heavy per keystroke).</summary>
         private void UpdatePageCount()
         {
@@ -461,6 +484,19 @@ namespace WriterForge.Editor.Controls
             {
                 if (!_outlineCollapsed.Remove(para)) _outlineCollapsed.Add(para);
                 RefreshOutline();
+            }
+        }
+
+        /// <summary>Word-style outline shortcuts: Alt+Shift+arrows.</summary>
+        private void OutlineList_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (Keyboard.Modifiers != (ModifierKeys.Alt | ModifierKeys.Shift)) return;
+            switch (e.Key)
+            {
+                case Key.Left: OutlineAdjustLevel(-1); e.Handled = true; break;
+                case Key.Right: OutlineAdjustLevel(1); e.Handled = true; break;
+                case Key.Up: OutlineMove(true); e.Handled = true; break;
+                case Key.Down: OutlineMove(false); e.Handled = true; break;
             }
         }
 

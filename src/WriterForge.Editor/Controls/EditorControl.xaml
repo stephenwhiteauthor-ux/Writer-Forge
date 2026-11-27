@@ -74,7 +74,7 @@
                         MouseMove="Ruler_MouseMove"
                         MouseLeftButtonUp="Ruler_MouseUp"/>
 
-                <Grid Grid.Row="1">
+                <Grid Grid.Row="1" x:Name="EditorHost" SizeChanged="EditorHost_SizeChanged">
                     <RichTextBox x:Name="Document"
                                  AcceptsReturn="True"
                                  VerticalScrollBarVisibility="Auto"
@@ -124,7 +124,8 @@
                                 </StackPanel>
                             </Border>
                             <ListBox x:Name="OutlineList" BorderThickness="0" Background="Transparent"
-                                     MouseDoubleClick="OutlineList_MouseDoubleClick"/>
+                                     MouseDoubleClick="OutlineList_MouseDoubleClick"
+                                     KeyDown="OutlineList_KeyDown"/>
                         </DockPanel>
                     </Border>
                 </Grid>

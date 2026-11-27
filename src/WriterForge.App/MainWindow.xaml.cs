@@ -525,11 +525,31 @@ public partial class MainWindow : RibbonWindow
     private void PageCount_Click(object sender, RoutedEventArgs e) =>
         MessageBox.Show(Editor.GetPaginationDebug(), "Pagination", MessageBoxButton.OK, MessageBoxImage.Information);
 
+    private void DraftToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (DraftToggle.IsChecked != true) return;
+        PrintLayoutToggle.IsChecked = false;
+        ReadModeToggle.IsChecked = false;
+        OutlineToggle.IsChecked = false;
+        MainRibbon.Visibility = Visibility.Visible;
+        Editor.SetPageView(false);
+        Editor.SetOutlineView(false);
+    }
+
+    private void ZoomBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingRibbon || Editor is null) return;
+        if (ZoomBox.SelectedItem is ComboBoxItem { Tag: string tag } &&
+            double.TryParse(tag, NumberStyles.Float, CultureInfo.InvariantCulture, out var z))
+            Editor.SetZoom(z);
+    }
+
     private void PrintLayoutToggle_Click(object sender, RoutedEventArgs e)
     {
         var on = PrintLayoutToggle.IsChecked == true;
         if (on)
         {
+            DraftToggle.IsChecked = false;
             OutlineToggle.IsChecked = false;
             Editor.SetOutlineView(false);
         }
@@ -547,6 +567,7 @@ public partial class MainWindow : RibbonWindow
         MainRibbon.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
         if (on)
         {
+            DraftToggle.IsChecked = false;
             OutlineToggle.IsChecked = false;
             Editor.SetOutlineView(false);
         }
@@ -559,6 +580,7 @@ public partial class MainWindow : RibbonWindow
         var on = OutlineToggle.IsChecked == true;
         if (on)
         {
+            DraftToggle.IsChecked = false;
             PrintLayoutToggle.IsChecked = false;
             ReadModeToggle.IsChecked = false;
             MainRibbon.Visibility = Visibility.Visible;
