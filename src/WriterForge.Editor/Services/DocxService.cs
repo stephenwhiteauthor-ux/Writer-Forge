@@ -9,6 +9,8 @@ using Color = System.Windows.Media.Color;
 using Hyperlink = System.Windows.Documents.Hyperlink;
 using Paragraph = System.Windows.Documents.Paragraph;
 using Run = System.Windows.Documents.Run;
+using WpAbstractNum = DocumentFormat.OpenXml.Wordprocessing.AbstractNum;
+using WpAbstractNumId = DocumentFormat.OpenXml.Wordprocessing.AbstractNumId;
 using WpAlignment = DocumentFormat.OpenXml.Wordprocessing.JustificationValues;
 using WpBody = DocumentFormat.OpenXml.Wordprocessing.Body;
 using WpBold = DocumentFormat.OpenXml.Wordprocessing.Bold;
@@ -21,6 +23,16 @@ using WpFontSize = DocumentFormat.OpenXml.Wordprocessing.FontSize;
 using WpHyperlink = DocumentFormat.OpenXml.Wordprocessing.Hyperlink;
 using WpItalic = DocumentFormat.OpenXml.Wordprocessing.Italic;
 using WpJustification = DocumentFormat.OpenXml.Wordprocessing.Justification;
+using WpNumbering = DocumentFormat.OpenXml.Wordprocessing.Numbering;
+using WpNumberingId = DocumentFormat.OpenXml.Wordprocessing.NumberingId;
+using WpNumberingInstance = DocumentFormat.OpenXml.Wordprocessing.NumberingInstance;
+using WpNumberingProperties = DocumentFormat.OpenXml.Wordprocessing.NumberingProperties;
+using WpNumberingLevelReference = DocumentFormat.OpenXml.Wordprocessing.NumberingLevelReference;
+using WpLevel = DocumentFormat.OpenXml.Wordprocessing.Level;
+using WpLevelText = DocumentFormat.OpenXml.Wordprocessing.LevelText;
+using WpNumberFormat = DocumentFormat.OpenXml.Wordprocessing.NumberingFormat;
+using WpNumberFormatValues = DocumentFormat.OpenXml.Wordprocessing.NumberFormatValues;
+using WpStart = DocumentFormat.OpenXml.Wordprocessing.StartNumberingValue;
 using WpNoBreakHyphen = DocumentFormat.OpenXml.Wordprocessing.NoBreakHyphen;
 using WpParagraph = DocumentFormat.OpenXml.Wordprocessing.Paragraph;
 using WpParagraphProperties = DocumentFormat.OpenXml.Wordprocessing.ParagraphProperties;
@@ -57,44 +69,96 @@ namespace WriterForge.Editor.Services
             mainPart.Document = new WpDocument();
             var body = mainPart.Document.AppendChild(new WpBody());
 
+            var state = new NumberingState(mainPart);
             foreach (var block in document.Blocks)
-                ExportBlock(block, body);
+                ExportBlock(block, body, state);
+            state.CommitNumbering();
 
             mainPart.Document.Save();
         }
 
-        private static void ExportBlock(Block block, WpBody body)
+        /// <summary>
+        /// Builds numbering.xml definitions for WPF lists so exported .docx
+        /// files contain real Word lists (numPr) rather than literal markers.
+        /// </summary>
+        private sealed class NumberingState
+        {
+            private readonly MainDocumentPart _main;
+            private NumberingDefinitionsPart? _part;
+            private readonly List<WpAbstractNum> _abstracts = new();
+            private readonly List<WpNumberingInstance> _instances = new();
+            private int _nextAbstract = 1;
+            private int _nextNum = 1;
+
+            public NumberingState(MainDocumentPart main) => _main = main;
+
+            /// <summary>Register a list and return its numId (0 when unused).</summary>
+            public int GetNumId(TextMarkerStyle markerStyle)
+            {
+                _part ??= _main.AddNewPart<NumberingDefinitionsPart>();
+                var isBullet = markerStyle != TextMarkerStyle.Decimal;
+                var abstractId = _nextAbstract++;
+                var numId = _nextNum++;
+
+                var abs = new WpAbstractNum { AbstractNumberId = abstractId };
+                var lvl = new WpLevel { LevelIndex = 0 };
+                lvl.Append(new WpStart { Val = 1 });
+                lvl.Append(new WpNumberFormat
+                {
+                    Val = isBullet ? WpNumberFormatValues.Bullet : WpNumberFormatValues.Decimal,
+                });
+                lvl.Append(new WpLevelText { Val = isBullet ? "•" : "%1." });
+                abs.Append(lvl);
+                _abstracts.Add(abs);
+
+                var num = new WpNumberingInstance { NumberID = numId };
+                num.Append(new WpAbstractNumId { Val = abstractId });
+                _instances.Add(num);
+                return numId;
+            }
+
+            /// <summary>Write abstract numbering before instances (schema order).</summary>
+            public void CommitNumbering()
+            {
+                if (_part is null) return;
+                var numbering = new WpNumbering();
+                foreach (var a in _abstracts) numbering.Append(a);
+                foreach (var n in _instances) numbering.Append(n);
+                _part.Numbering = numbering;
+                _part.Numbering.Save();
+            }
+        }
+
+        private static void ExportBlock(Block block, WpBody body, NumberingState state)
         {
             switch (block)
             {
                 case Paragraph paragraph:
-                    body.AppendChild(ExportParagraph(paragraph));
+                    body.AppendChild(ExportParagraph(paragraph, state));
                     break;
                 case Section section:
                     foreach (var child in section.Blocks)
-                        ExportBlock(child, body);
+                        ExportBlock(child, body, state);
                     break;
                 case List list:
-                    var number = 1;
+                    var numId = state.GetNumId(list.MarkerStyle);
                     foreach (var item in list.ListItems)
                     {
-                        var prefix = list.MarkerStyle == TextMarkerStyle.Disc ? "• " : $"{number}. ";
                         var first = true;
                         foreach (var child in item.Blocks)
                         {
                             if (child is Paragraph itemParagraph)
-                                body.AppendChild(ExportParagraph(itemParagraph, first ? prefix : null));
+                                body.AppendChild(ExportParagraph(itemParagraph, state, first ? numId : 0));
                             else
-                                ExportBlock(child, body);
+                                ExportBlock(child, body, state);
                             first = false;
                         }
-                        number++;
                     }
                     break;
             }
         }
 
-        private static WpParagraph ExportParagraph(Paragraph paragraph, string? prefix = null)
+        private static WpParagraph ExportParagraph(Paragraph paragraph, NumberingState state, int numId = 0)
         {
             var wp = new WpParagraph();
             var pPr = new WpParagraphProperties();
@@ -102,6 +166,15 @@ namespace WriterForge.Editor.Services
             var styleId = MapStyleKey(EditorTags.GetStyleKey(paragraph), paragraph);
             if (styleId is not null)
                 pPr.Append(new WpParagraphStyleId { Val = styleId });
+
+            if (numId > 0)
+            {
+                pPr.Append(new WpNumberingProperties
+                {
+                    NumberingId = new WpNumberingId { Val = numId },
+                    NumberingLevelReference = new WpNumberingLevelReference { Val = 0 },
+                });
+            }
 
             var alignment = paragraph.TextAlignment switch
             {
@@ -112,9 +185,6 @@ namespace WriterForge.Editor.Services
             };
             pPr.Append(new WpJustification { Val = alignment });
             wp.Append(pPr);
-
-            if (prefix is not null)
-                wp.AppendChild(new WpRun(new WpText(prefix) { Space = SpaceProcessingModeValues.Preserve }));
 
             foreach (var run in EnumerateRuns(paragraph.Inlines))
             {

@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows.Documents;
+using System.Windows.Media.Imaging;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -9,8 +10,8 @@ namespace WriterForge.Editor.Services;
 
 /// <summary>
 /// Exports the document to PDF via QuestPDF. Preserves paragraph styles
-/// (headings bold/larger), runs (bold/italic/underline/strike), and text.
-/// Images render as an "[image]" placeholder line.
+/// (headings bold/larger), runs (bold/italic/underline/strike), tables and
+/// embedded images.
 /// </summary>
 public static class PdfExportService
 {
@@ -19,7 +20,10 @@ public static class PdfExportService
         QuestPDF.Settings.License = LicenseType.Community;
     }
 
-    private sealed record Entry(string StyleKey, string Text, bool Bold, bool Italic);
+    private sealed record Entry(
+        string StyleKey, string Text, bool Bold, bool Italic,
+        List<List<string>>? Table = null,
+        byte[]? Image = null, double ImageWidth = 0, double ImageHeight = 0);
 
     public static void Export(FlowDocument document, string path, string title, string? header = null, string? footer = null)
     {
@@ -59,7 +63,36 @@ public static class PdfExportService
                     col.Item().PaddingTop(16);
                     foreach (var e in entries)
                     {
-                        col.Item().PaddingVertical(2).Text(e.Text).Style(StyleFor(e));
+                        if (e.Table is { } table)
+                        {
+                            col.Item().Table(t =>
+                            {
+                                var cols = table.Max(r => r.Count);
+                                t.ColumnsDefinition(c =>
+                                {
+                                    for (var i = 0; i < cols; i++) c.RelativeColumn();
+                                });
+                                foreach (var row in table)
+                                {
+                                    for (var i = 0; i < cols; i++)
+                                    {
+                                        var text = i < row.Count ? row[i] : "";
+                                        t.Cell().Border(0.5f).BorderColor(Colors.Grey.Medium).Padding(4)
+                                            .Text(text);
+                                    }
+                                }
+                            });
+                        }
+                        else if (e.Image is { } img)
+                        {
+                            col.Item().PaddingVertical(4)
+                                .Width((float)Math.Min(e.ImageWidth, 480))
+                                .Image(img).FitWidth();
+                        }
+                        else
+                        {
+                            col.Item().PaddingVertical(2).Text(e.Text).Style(StyleFor(e));
+                        }
                     }
                 });
             });
@@ -79,10 +112,13 @@ public static class PdfExportService
                     var level = StyleKeys.HeadingLevel(styleKey);
                     if (level > 0) styleKey = $"Heading{level}";
                     var (bold, italic) = ParaFlags(para);
-                    entries.Add(new Entry(styleKey, ExtractText(para), bold, italic));
+                    EmitParagraph(para, styleKey, bold, italic, entries);
                     break;
                 case WF.Section section:
                     Collect(section.Blocks, entries);
+                    break;
+                case WF.Table table:
+                    entries.Add(new Entry("Normal", "", false, false, Table: TableRows(table)));
                     break;
                 case WF.List list:
                     var n = 1;
@@ -100,6 +136,85 @@ public static class PdfExportService
                     break;
             }
         }
+    }
+
+    /// <summary>Flatten a table into rows of cell texts for QuestPDF.</summary>
+    private static List<List<string>> TableRows(WF.Table table)
+    {
+        var rows = new List<List<string>>();
+        foreach (var group in table.RowGroups)
+        foreach (TableRow row in group.Rows)
+        {
+            var cells = new List<string>();
+            foreach (TableCell cell in row.Cells)
+            {
+                var parts = BlockTree.WalkBlocks(cell.Blocks).Select(ExtractText);
+                cells.Add(string.Join(" ", parts.Where(s => s.Length > 0)));
+            }
+            rows.Add(cells);
+        }
+        return rows;
+    }
+
+    /// <summary>
+    /// Emit a paragraph as text entries, splitting around inline images so
+    /// each image becomes its own embeddable entry.
+    /// </summary>
+    private static void EmitParagraph(
+        WF.Paragraph para, string styleKey, bool bold, bool italic, List<Entry> entries)
+    {
+        var sb = new System.Text.StringBuilder();
+        void Flush()
+        {
+            if (sb.Length == 0) return;
+            entries.Add(new Entry(styleKey, sb.ToString(), bold, italic));
+            sb.Clear();
+        }
+
+        void Walk(System.Windows.Documents.InlineCollection inlines)
+        {
+            foreach (var inline in inlines)
+            {
+                switch (inline)
+                {
+                    case WF.Run r: sb.Append(r.Text); break;
+                    case WF.LineBreak: sb.Append('\n'); break;
+                    case WF.Span s: Walk(s.Inlines); break;
+                    case WF.InlineUIContainer c:
+                        if (TryImageEntry(c, out var img))
+                        {
+                            Flush();
+                            entries.Add(img);
+                        }
+                        else sb.Append("[image]");
+                        break;
+                }
+            }
+        }
+        Walk(para.Inlines);
+        Flush();
+    }
+
+    /// <summary>Encode an inline image's bitmap to PNG bytes with display size in points.</summary>
+    private static bool TryImageEntry(WF.InlineUIContainer container, out Entry entry)
+    {
+        entry = new Entry("Normal", "", false, false);
+        if (container.Child is not System.Windows.Controls.Image img || img.Source is not BitmapSource src)
+            return false;
+
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(src));
+        using var ms = new MemoryStream();
+        encoder.Save(ms);
+
+        // Display width mirrors the editor: explicit Width capped by MaxWidth,
+        // else natural width capped by MaxWidth. Points = px * 0.75.
+        var maxW = img.MaxWidth > 0 ? img.MaxWidth : double.PositiveInfinity;
+        var w = double.IsNaN(img.Width) ? Math.Min(src.Width, maxW) : Math.Min(img.Width, maxW);
+        var h = w * src.Height / src.Width;
+        entry = new Entry("Normal", "", false, false,
+            Image: ms.ToArray(), ImageWidth: w * 0.75, ImageHeight: h * 0.75);
+        return true;
     }
 
     private static TextStyle StyleFor(Entry e)
