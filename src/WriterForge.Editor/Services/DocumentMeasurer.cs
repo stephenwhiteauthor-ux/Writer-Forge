@@ -36,10 +36,20 @@ namespace WriterForge.Editor.Services
         public double FontSize { get; init; }
     }
 
+    /// <summary>Layout measurement for one table (atomic block height).</summary>
+    internal sealed class TableMeasure
+    {
+        public required Table Source { get; init; }
+        public required double Height { get; init; }
+        /// <summary>False when cell content couldn't be verified against the clone.</summary>
+        public bool Reliable { get; init; }
+    }
+
     /// <summary>Per-document measurement cache produced by <see cref="DocumentMeasurer"/>.</summary>
     internal sealed class MeasuredDocument
     {
         public required IReadOnlyDictionary<Paragraph, ParagraphMeasure> ByParagraph { get; init; }
+        public required IReadOnlyDictionary<Table, TableMeasure> ByTable { get; init; }
         public double ColumnWidth { get; init; }
     }
 
@@ -79,7 +89,72 @@ namespace WriterForge.Editor.Services
                     && TextEquals(sp, cloneParas[i]);
                 map[sp] = MeasureParagraph(sp, reliable ? cloneParas[i] : null);
             }
-            return new MeasuredDocument { ByParagraph = map, ColumnWidth = columnWidth };
+
+            var tableMap = MeasureTables(source, clone, map);
+            return new MeasuredDocument { ByParagraph = map, ByTable = tableMap, ColumnWidth = columnWidth };
+        }
+
+        /// <summary>
+        /// Measure every flow table: cell paragraphs get individual measures,
+        /// and the table height comes from the clone's glyph extents.
+        /// </summary>
+        private static Dictionary<Table, TableMeasure> MeasureTables(
+            FlowDocument source, FlowDocument clone, Dictionary<Paragraph, ParagraphMeasure> map)
+        {
+            var result = new Dictionary<Table, TableMeasure>();
+            var sourceTables = BlockTree.FlowTables(source);
+            var cloneTables = BlockTree.FlowTables(clone);
+            var countsMatch = sourceTables.Count == cloneTables.Count;
+
+            for (var i = 0; i < sourceTables.Count; i++)
+            {
+                var st = sourceTables[i];
+                var ct = countsMatch ? cloneTables[i] : null;
+                var cellParas = BlockTree.CellParagraphs(st).ToList();
+                var cloneParas = ct is null ? new List<Paragraph>() : BlockTree.CellParagraphs(ct).ToList();
+                var reliable = ct is not null && cloneParas.Count == cellParas.Count;
+
+                for (var j = 0; j < cellParas.Count; j++)
+                {
+                    var cp = cellParas[j];
+                    var cClone = reliable && !HasInlineObjects(cp) && TextEquals(cp, cloneParas[j])
+                        ? cloneParas[j]
+                        : null;
+                    map[cp] = MeasureParagraph(cp, cClone);
+                }
+                if (!reliable || cellParas.Any(HasInlineObjects)) reliable = false;
+
+                result[st] = new TableMeasure
+                {
+                    Source = st,
+                    Height = TableHeight(st, reliable ? cloneParas : null),
+                    Reliable = reliable,
+                };
+            }
+            return result;
+        }
+
+        /// <summary>Table height from first/last cell glyph extents in the clone; estimate fallback.</summary>
+        private static double TableHeight(Table source, List<Paragraph>? cloneParas)
+        {
+            const double cellPaddingFudge = 8;
+            if (cloneParas is { Count: > 0 })
+            {
+                var first = cloneParas.FirstOrDefault(p => p.ContentStart.GetOffsetToPosition(p.ContentEnd) > 0)
+                    ?? cloneParas[0];
+                var last = cloneParas.LastOrDefault(p => p.ContentStart.GetOffsetToPosition(p.ContentEnd) > 0)
+                    ?? cloneParas[^1];
+
+                var firstPos = first.ContentStart.GetPositionAtOffset(0);
+                var top = firstPos?.GetCharacterRect(LogicalDirection.Forward) is Rect fr ? fr.Y : 0;
+                var lastPos = last.ContentEnd.GetPositionAtOffset(-1) ?? last.ContentStart;
+                var bottom = lastPos.GetCharacterRect(LogicalDirection.Forward).Bottom;
+                if (bottom > top) return bottom - top + cellPaddingFudge;
+            }
+
+            var rows = source.RowGroups.Cast<TableRowGroup>().Sum(g => g.Rows.Count);
+            var fontSize = source.GetValue(System.Windows.Documents.TextElement.FontSizeProperty) is double s ? s : 14.0;
+            return Math.Max(1, rows) * (fontSize * 1.4 + cellPaddingFudge);
         }
 
         private static FlowDocument CloneDocument(FlowDocument source) =>

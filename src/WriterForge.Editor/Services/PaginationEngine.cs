@@ -74,23 +74,45 @@ namespace WriterForge.Editor.Services
                 return p;
             }
 
-            foreach (var para in BlockTree.AllParagraphs(document))
+            bool PageHasContent(PageModel? p) =>
+                p is not null && (p.Lines.Count > 0 || p.Tables.Count > 0);
+
+            foreach (var block in BlockTree.FlowBlocks(document))
             {
+                // Tables are atomic: they move whole to the next page rather
+                // than split (a table taller than a page overflows — rare).
+                if (block is Table table)
+                {
+                    if (!measured.ByTable.TryGetValue(table, out var tm)) continue;
+                    if (PageHasContent(page) &&
+                        y + tm.Height > page!.ContentHeight - reservedHeight(page.Index))
+                    {
+                        page = null;
+                        y = 0;
+                    }
+                    page ??= NewPage();
+                    page.Tables.Add(new TablePlacement { Table = table, Top = y, Height = tm.Height });
+                    y += tm.Height;
+                    continue;
+                }
+
+                if (block is not Paragraph para) continue;
+
                 // Footnote paragraphs render in the page-bottom area, not the body flow.
                 // (Endnote paragraphs stay in the flow — they collect at the document end.)
                 if (EditorTags.GetStyleKey(para) == FootnoteService.FootnoteStyleKey) continue;
                 if (!measured.ByParagraph.TryGetValue(para, out var pm)) continue;
 
                 // Space before: suppressed at the top of a fresh page.
-                if (para.Margin.Top > 0 && (page is null || page.Lines.Count > 0))
+                if (para.Margin.Top > 0 && PageHasContent(page))
                     y += para.Margin.Top;
 
                 for (var i = 0; i < pm.Lines.Count; i++)
                 {
                     var ml = pm.Lines[i];
                     var lineHeight = ml.Height;
-                    if (page is not null && page.Lines.Count > 0 &&
-                        y + lineHeight > page.ContentHeight - reservedHeight(page.Index))
+                    if (PageHasContent(page) &&
+                        y + lineHeight > page!.ContentHeight - reservedHeight(page.Index))
                     {
                         page = null; // break to a new page
                         y = 0;

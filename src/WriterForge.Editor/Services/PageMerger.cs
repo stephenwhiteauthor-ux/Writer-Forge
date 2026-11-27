@@ -5,7 +5,8 @@ namespace WriterForge.Editor.Services
     /// <summary>
     /// Merges edited page-view slice documents back into a single master
     /// FlowDocument. Slice paragraphs carry their source ordinal; fragments
-    /// of the same source paragraph are concatenated in page order, and list
+    /// of the same source paragraph are concatenated in page order. Tables
+    /// are atomic — each slice replaces its source table wholesale. List
     /// membership is reconstructed from the source document.
     /// </summary>
     internal static class PageMerger
@@ -19,78 +20,49 @@ namespace WriterForge.Editor.Services
             IReadOnlyList<FlowDocument> pageDocs, FlowDocument source)
         {
             var sourceParas = BlockTree.AllParagraphs(source).ToList();
+            var sourceTables = BlockTree.FlowTables(source);
 
-            // Gather fragments per source ordinal, in encounter order.
-            var fragments = new Dictionary<int, List<Paragraph>>();
-            var ordinalOrder = new List<int>();
+            // Gather paragraph fragments per source ordinal and table slices
+            // per table ordinal, recording the interleaved document order.
+            var paraFrags = new Dictionary<int, List<Paragraph>>();
+            var tableSlices = new Dictionary<int, Table>();
+            var seq = new List<(bool IsTable, int Ordinal)>();
+            var seenParas = new HashSet<int>();
+            var seenTables = new HashSet<int>();
+
             foreach (var pageDoc in pageDocs)
             foreach (var block in pageDoc.Blocks)
             {
-                if (block is not Paragraph frag) continue;
-                var ordinal = EditorTags.GetSourceOrdinal(frag);
-                if (ordinal < 0 || ordinal >= sourceParas.Count) continue;
-                if (!fragments.TryGetValue(ordinal, out var list))
+                switch (block)
                 {
-                    list = new List<Paragraph>();
-                    fragments[ordinal] = list;
-                    ordinalOrder.Add(ordinal);
+                    case Paragraph frag:
+                    {
+                        var ord = EditorTags.GetSourceOrdinal(frag);
+                        if (ord < 0 || ord >= sourceParas.Count) break;
+                        if (seenParas.Add(ord)) seq.Add((false, ord));
+                        if (!paraFrags.TryGetValue(ord, out var list))
+                            paraFrags[ord] = list = new List<Paragraph>();
+                        list.Add(frag);
+                        break;
+                    }
+                    case Table table:
+                    {
+                        var ord = EditorTags.GetSourceOrdinal(table);
+                        if (ord < 0 || ord >= sourceTables.Count || !seenTables.Add(ord)) break;
+                        seq.Add((true, ord));
+                        tableSlices[ord] = table;
+                        break;
+                    }
                 }
-                list.Add(frag);
             }
 
-            // Rebuild one paragraph per ordinal.
-            var merged = new List<(Paragraph Para, int Ordinal)>();
-            var covered = new HashSet<int>();
-            foreach (var ordinal in ordinalOrder)
-            {
-                var frags = fragments[ordinal];
-                var first = frags[0];
-                var para = DocumentCopier.Copy(first);
-                for (var i = 1; i < frags.Count; i++)
-                    MoveInlines(frags[i], para);
-                merged.Add((para, ordinal));
-                covered.Add(ordinal);
-            }
-
-            // Safety net: source paragraphs that produced no slice (shouldn't
-            // happen) are appended whole rather than lost.
-            for (var i = 0; i < sourceParas.Count; i++)
-            {
-                if (covered.Contains(i)) continue;
-                if (EditorTags.GetStyleKey(sourceParas[i]) == FootnoteService.FootnoteStyleKey) continue;
-                merged.Add((DocumentCopier.Copy(sourceParas[i]), i));
-            }
-
-            // Rebuild list wrappers from source structure.
             var result = new FlowDocument
             {
                 PageWidth = source.PageWidth,
                 PageHeight = source.PageHeight,
                 PagePadding = source.PagePadding,
             };
-            EmitBlocks(merged, sourceParas, result);
 
-            // Footnote paragraphs live outside the page flow — restore at end.
-            foreach (var p in sourceParas)
-                if (EditorTags.GetStyleKey(p) == FootnoteService.FootnoteStyleKey)
-                    result.Blocks.Add(DocumentCopier.Copy(p));
-
-            return result;
-        }
-
-        private static void MoveInlines(Paragraph from, Paragraph to)
-        {
-            foreach (var inline in from.Inlines.ToList())
-            {
-                from.Inlines.Remove(inline);
-                to.Inlines.Add(inline);
-            }
-        }
-
-        private static void EmitBlocks(
-            List<(Paragraph Para, int Ordinal)> merged,
-            List<Paragraph> sourceParas, FlowDocument result)
-        {
             List? currentList = null;
             ListItem? currentItem = null;
 
@@ -100,7 +72,13 @@ namespace WriterForge.Editor.Services
                 currentList = null;
             }
 
-            foreach (var (para, ordinal) in merged)
+            void EmitTable(Table slice)
+            {
+                CloseList();
+                result.Blocks.Add(DocumentCopier.Copy(slice));
+            }
+
+            void EmitParagraph(Paragraph merged, int ordinal)
             {
                 var sourcePara = sourceParas[ordinal];
                 var list = BlockTree.ParentList(sourcePara);
@@ -118,7 +96,7 @@ namespace WriterForge.Editor.Services
 
                 if (currentList is null)
                 {
-                    result.Blocks.Add(para);
+                    result.Blocks.Add(merged);
                 }
                 else
                 {
@@ -127,8 +105,56 @@ namespace WriterForge.Editor.Services
                         currentItem = new ListItem();
                         currentList.ListItems.Add(currentItem);
                     }
-                    currentItem.Blocks.Add(para);
+                    currentItem.Blocks.Add(merged);
                 }
+            }
+
+            Paragraph MergeParagraphFragments(int ordinal)
+            {
+                var frags = paraFrags[ordinal];
+                var para = DocumentCopier.Copy(frags[0]);
+                for (var i = 1; i < frags.Count; i++)
+                    MoveInlines(frags[i], para);
+                return para;
+            }
+
+            foreach (var (isTable, ordinal) in seq)
+            {
+                if (isTable)
+                {
+                    if (tableSlices.TryGetValue(ordinal, out var slice)) EmitTable(slice);
+                }
+                else
+                {
+                    EmitParagraph(MergeParagraphFragments(ordinal), ordinal);
+                }
+            }
+
+            // Safety net: source content that produced no slice is appended
+            // whole rather than lost (shouldn't happen in practice).
+            for (var i = 0; i < sourceParas.Count; i++)
+            {
+                if (seenParas.Contains(i)) continue;
+                if (StyleKeys.IsNoteStyle(EditorTags.GetStyleKey(sourceParas[i]))) continue;
+                EmitParagraph(DocumentCopier.Copy(sourceParas[i]), i);
+            }
+            for (var i = 0; i < sourceTables.Count; i++)
+                if (!seenTables.Contains(i)) EmitTable(sourceTables[i]);
+
+            // Footnote paragraphs live outside the page flow — restore at end.
+            foreach (var p in sourceParas)
+                if (EditorTags.GetStyleKey(p) == FootnoteService.FootnoteStyleKey)
+                    result.Blocks.Add(DocumentCopier.Copy(p));
+
+            return result;
+        }
+
+        private static void MoveInlines(Paragraph from, Paragraph to)
+        {
+            foreach (var inline in from.Inlines.ToList())
+            {
+                from.Inlines.Remove(inline);
+                to.Inlines.Add(inline);
             }
         }
     }

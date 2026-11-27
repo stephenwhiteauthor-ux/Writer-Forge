@@ -2,9 +2,11 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Controls.Ribbon;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using WriterForge.Editor.Controls;
@@ -131,6 +133,7 @@ public partial class MainWindow : RibbonWindow
             SelectComboItem(FontBox, s.FontFamily);
             SelectComboItem(SizeBox, s.FontSize?.ToString("0.##", CultureInfo.InvariantCulture));
             SelectComboItem(StyleBox, s.StyleKey ?? "StyleNormal");
+            TableTab.Visibility = s.InTable ? Visibility.Visible : Visibility.Collapsed;
         }
         finally
         {
@@ -389,11 +392,84 @@ public partial class MainWindow : RibbonWindow
 
     // ---------- Insert ----------
 
-    private void InsertTable_Click(object sender, RoutedEventArgs e)
+    // ---------- Table grid picker ----------
+
+    private const int PickerCols = 10;
+    private const int PickerRows = 8;
+    private int _pickRows;
+    private int _pickCols;
+
+    private void InsertTableButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new InsertTableWindow { Owner = this };
-        if (dialog.ShowDialog() == true)
-            Editor.InsertTable(dialog.Rows, dialog.Columns);
+        BuildTablePicker();
+        TablePickerPopup.IsOpen = true;
+    }
+
+    private void BuildTablePicker()
+    {
+        PickerGrid.Children.Clear();
+        _pickRows = 0;
+        _pickCols = 0;
+        for (var r = 1; r <= PickerRows; r++)
+        for (var c = 1; c <= PickerCols; c++)
+        {
+            var cell = new Button
+            {
+                Width = 20,
+                Height = 20,
+                Margin = new Thickness(1),
+                Padding = new Thickness(0),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB)),
+                BorderThickness = new Thickness(0.5),
+                Background = Brushes.White,
+                Tag = (r, c),
+                Cursor = Cursors.Hand,
+            };
+            cell.MouseEnter += PickerCell_Enter;
+            cell.Click += PickerCell_Click;
+            PickerGrid.Children.Add(cell);
+        }
+        PickerLabel.Text = "Insert Table";
+    }
+
+    private static bool TryGetCell(Button b, out int rows, out int cols)
+    {
+        rows = cols = 0;
+        if (b.Tag is ValueTuple<int, int> t)
+        {
+            rows = t.Item1;
+            cols = t.Item2;
+            return true;
+        }
+        return false;
+    }
+
+    private void PickerCell_Enter(object sender, MouseEventArgs e)
+    {
+        if (sender is Button b && TryGetCell(b, out var r, out var c))
+        {
+            _pickRows = r;
+            _pickCols = c;
+        }
+        PickerLabel.Text = $"{_pickRows} × {_pickCols} Table";
+        foreach (var child in PickerGrid.Children)
+        {
+            if (child is Button cb && TryGetCell(cb, out var cr, out var cc))
+            {
+                var on = cr <= _pickRows && cc <= _pickCols;
+                cb.Background = on
+                    ? new SolidColorBrush(Color.FromRgb(0x2B, 0x6C, 0xB0))
+                    : Brushes.White;
+                cb.BorderBrush = on ? Brushes.Transparent : new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB));
+            }
+        }
+    }
+
+    private void PickerCell_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && TryGetCell(b, out var r, out var c))
+            Editor.InsertTable(r, c);
+        TablePickerPopup.IsOpen = false;
     }
 
     private void InsertImage_Click(object sender, RoutedEventArgs e) => Editor.PromptInsertImage();
@@ -410,6 +486,7 @@ public partial class MainWindow : RibbonWindow
     private void InsertColLeft_Click(object sender, RoutedEventArgs e) => TableOp(Editor.InsertTableColumn(right: false));
     private void DeleteRow_Click(object sender, RoutedEventArgs e) => TableOp(Editor.DeleteTableRow());
     private void DeleteColumn_Click(object sender, RoutedEventArgs e) => TableOp(Editor.DeleteTableColumn());
+    private void DeleteTable_Click(object sender, RoutedEventArgs e) => TableOp(Editor.DeleteTable());
 
     private void InsertToc_Click(object sender, RoutedEventArgs e)
     {

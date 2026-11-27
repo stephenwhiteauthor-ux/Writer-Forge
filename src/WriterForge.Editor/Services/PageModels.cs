@@ -14,6 +14,8 @@ namespace WriterForge.Editor.Services
         public List<LineModel> Lines { get; } = new();
         /// <summary>Footnote/endnote placements pinned to the bottom of the page.</summary>
         public List<FootnotePlacement> Footnotes { get; } = new();
+        /// <summary>Tables placed on this page (atomic — never split across pages).</summary>
+        public List<TablePlacement> Tables { get; } = new();
         /// <summary>Reserved height at the bottom for footnotes (0 when none).</summary>
         public double FootnoteAreaHeight { get; set; }
         /// <summary>Running header/footer text (resolved later with page numbers).</summary>
@@ -44,6 +46,15 @@ namespace WriterForge.Editor.Services
         public List<MarkerSpan> Markers { get; } = new();
         /// <summary>Script (super/subscript) ranges overlapping this line, in paragraph-text coords.</summary>
         public List<(CharSpan Span, BaselineAlignment Kind)> Scripts { get; } = new();
+    }
+
+    /// <summary>A table rendered at a fixed position on a page.</summary>
+    internal sealed class TablePlacement
+    {
+        public required Table Table { get; init; }
+        /// <summary>Y position relative to the page's padding box.</summary>
+        public required double Top { get; init; }
+        public required double Height { get; init; }
     }
 
     /// <summary>A footnote/endnote rendered at the bottom of a page.</summary>

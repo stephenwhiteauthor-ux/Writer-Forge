@@ -25,5 +25,8 @@ namespace WriterForge.Editor.Controls
 
         public bool Bullets { get; init; }
         public bool Numbers { get; init; }
+
+        /// <summary>Caret is inside a table cell (drives the contextual Table tab).</summary>
+        public bool InTable { get; init; }
     }
 }

@@ -132,13 +132,7 @@
                     <RibbonButton Label="Picture" ToolTip="Insert image" Click="InsertImage_Click"/>
                 </RibbonGroup>
                 <RibbonGroup Header="Tables">
-                    <RibbonButton Label="Table..." ToolTip="Insert table" Click="InsertTable_Click"/>
-                    <RibbonButton Label="Insert Row Below" Click="InsertRowBelow_Click"/>
-                    <RibbonButton Label="Insert Row Above" Click="InsertRowAbove_Click"/>
-                    <RibbonButton Label="Insert Column Right" Click="InsertColRight_Click"/>
-                    <RibbonButton Label="Insert Column Left" Click="InsertColLeft_Click"/>
-                    <RibbonButton Label="Delete Row" Click="DeleteRow_Click"/>
-                    <RibbonButton Label="Delete Column" Click="DeleteColumn_Click"/>
+                    <RibbonButton x:Name="InsertTableButton" Label="Table" ToolTip="Insert table" Click="InsertTableButton_Click"/>
                 </RibbonGroup>
                 <RibbonGroup Header="Reference">
                     <RibbonButton Label="Table of Contents" ToolTip="Insert table of contents" Click="InsertToc_Click"/>
@@ -178,6 +172,23 @@
                 </RibbonGroup>
                 <RibbonGroup Header="Page Setup">
                     <RibbonButton Label="Page Setup..." ToolTip="Page size, margins, header and footer" Click="PageSetup_Click"/>
+                </RibbonGroup>
+            </RibbonTab>
+
+            <!-- ================= TABLE (contextual — only while caret is in a table) ================= -->
+            <RibbonTab x:Name="TableTab" Header="Table" Visibility="Collapsed">
+                <RibbonGroup Header="Rows">
+                    <RibbonButton Label="Insert Above" Click="InsertRowAbove_Click"/>
+                    <RibbonButton Label="Insert Below" Click="InsertRowBelow_Click"/>
+                    <RibbonButton Label="Delete Row" Click="DeleteRow_Click"/>
+                </RibbonGroup>
+                <RibbonGroup Header="Columns">
+                    <RibbonButton Label="Insert Left" Click="InsertColLeft_Click"/>
+                    <RibbonButton Label="Insert Right" Click="InsertColRight_Click"/>
+                    <RibbonButton Label="Delete Column" Click="DeleteColumn_Click"/>
+                </RibbonGroup>
+                <RibbonGroup Header="Table">
+                    <RibbonButton Label="Delete Table" Click="DeleteTable_Click"/>
                 </RibbonGroup>
             </RibbonTab>
 
@@ -285,5 +296,16 @@
                 </ScrollViewer>
             </Grid>
         </Border>
+
+        <!-- Word-style table grid picker -->
+        <Popup x:Name="TablePickerPopup" PlacementTarget="{Binding ElementName=InsertTableButton}"
+               Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+            <Border Background="White" BorderBrush="#FF999999" BorderThickness="1" Padding="10">
+                <StackPanel>
+                    <TextBlock x:Name="PickerLabel" Text="Insert Table" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <UniformGrid x:Name="PickerGrid" Rows="8" Columns="10"/>
+                </StackPanel>
+            </Border>
+        </Popup>
     </Grid>
 </RibbonWindow>

@@ -80,7 +80,24 @@
                                  VerticalScrollBarVisibility="Auto"
                                  FontFamily="Georgia"
                                  FontSize="14"
-                                 Padding="48,24">
+                                 Padding="48,24"
+                                 ContextMenuOpening="Document_ContextMenuOpening">
+                        <RichTextBox.ContextMenu>
+                            <ContextMenu x:Name="DocContextMenu">
+                                <MenuItem Header="Cut" Click="CtxCut_Click"/>
+                                <MenuItem Header="Copy" Click="CtxCopy_Click"/>
+                                <MenuItem Header="Paste" Click="CtxPaste_Click"/>
+                                <Separator/>
+                                <MenuItem Header="Insert row above" Tag="table" Click="CtxInsRowAbove_Click"/>
+                                <MenuItem Header="Insert row below" Tag="table" Click="CtxInsRowBelow_Click"/>
+                                <MenuItem Header="Insert column left" Tag="table" Click="CtxInsColLeft_Click"/>
+                                <MenuItem Header="Insert column right" Tag="table" Click="CtxInsColRight_Click"/>
+                                <Separator Tag="table"/>
+                                <MenuItem Header="Delete row" Tag="table" Click="CtxDelRow_Click"/>
+                                <MenuItem Header="Delete column" Tag="table" Click="CtxDelCol_Click"/>
+                                <MenuItem Header="Delete table" Tag="table" Click="CtxDelTable_Click"/>
+                            </ContextMenu>
+                        </RichTextBox.ContextMenu>
                         <FlowDocument PagePadding="0">
                             <Paragraph/>
                         </FlowDocument>

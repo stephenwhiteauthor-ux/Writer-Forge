@@ -274,9 +274,7 @@ namespace WriterForge.Editor.Controls
         public void SetPageView(bool on)
         {
             _pageView = on;
-            // Editable page view requires every block to be paginatable;
-            // tables aren't measured yet, so they fall back to read-only.
-            _pageViewEditable = on && !AllTables(Document.Document.Blocks).Any();
+            _pageViewEditable = on;
             Document.Visibility = (on || _outlineView) ? Visibility.Collapsed : Visibility.Visible;
             PagePreview.Visibility = on && !_outlineView ? Visibility.Visible : Visibility.Collapsed;
             Ruler.Visibility = (on || _outlineView) || !_ruler ? Visibility.Collapsed : Visibility.Visible;
@@ -750,6 +748,7 @@ namespace WriterForge.Editor.Controls
                 Alignment = paragraph?.TextAlignment,
                 Bullets = list?.MarkerStyle == TextMarkerStyle.Disc,
                 Numbers = list?.MarkerStyle == TextMarkerStyle.Decimal,
+                InTable = TableContextAtCaret() is not null,
             });
         }
 
@@ -1627,6 +1626,7 @@ namespace WriterForge.Editor.Controls
                 Section section => section.Blocks,
                 FlowDocument document => document.Blocks,
                 ListItem item => item.Blocks,
+                TableCell cell => cell.Blocks,
                 _ => null,
             };
 
@@ -1667,7 +1667,16 @@ namespace WriterForge.Editor.Controls
 
             if (firstCellParagraph is not null)
                 Document.CaretPosition = firstCellParagraph.ContentStart;
+            NoteStructureChanged();
             SyncToolbar();
+        }
+
+        /// <summary>Mark dirty and schedule repagination after a structural (non-text) edit.</summary>
+        private void NoteStructureChanged()
+        {
+            SetDirty(true);
+            _pageTimer.Stop();
+            _pageTimer.Start();
         }
 
         private static TableCell NewTableCell()
@@ -1701,6 +1710,7 @@ namespace WriterForge.Editor.Controls
             for (var i = 0; i < row.Cells.Count; i++)
                 newRow.Cells.Add(NewTableCell());
             group.Rows.Insert(below ? rowIndex + 1 : rowIndex, newRow);
+            NoteStructureChanged();
             return true;
         }
 
@@ -1712,6 +1722,7 @@ namespace WriterForge.Editor.Controls
             var (_, _, _, _, _, colIndex) = ctx.Value;
             foreach (TableRow row in ctx.Value.Group.Rows)
                 row.Cells.Insert(Math.Min(right ? colIndex + 1 : colIndex, row.Cells.Count), NewTableCell());
+            NoteStructureChanged();
             return true;
         }
 
@@ -1721,6 +1732,7 @@ namespace WriterForge.Editor.Controls
             var ctx = TableContextAtCaret();
             if (ctx is null || ctx.Value.Group.Rows.Count <= 1) return false;
             ctx.Value.Group.Rows.RemoveAt(ctx.Value.RowIndex);
+            NoteStructureChanged();
             return true;
         }
 
@@ -1733,8 +1745,51 @@ namespace WriterForge.Editor.Controls
             foreach (TableRow row in ctx.Value.Group.Rows)
                 if (row.Cells.Count > 1)
                     row.Cells.RemoveAt(Math.Min(colIndex, row.Cells.Count - 1));
+            NoteStructureChanged();
             return true;
         }
+
+        /// <summary>Delete the table containing the caret.</summary>
+        public bool DeleteTable()
+        {
+            var ctx = TableContextAtCaret();
+            if (ctx is null) return false;
+            if (ParentBlocksOf(ctx.Value.Table) is { } blocks)
+                blocks.Remove(ctx.Value.Table);
+            else
+                return false;
+            NoteStructureChanged();
+            return true;
+        }
+
+        // ---------- Context menu ----------
+
+        private void Document_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            var inTable = TableContextAtCaret() is not null;
+            foreach (var item in DocContextMenu.Items)
+            {
+                if (item is Separator sep)
+                {
+                    if (sep.Tag as string == "table") sep.Visibility = inTable ? Visibility.Visible : Visibility.Collapsed;
+                }
+                else if (item is MenuItem mi && mi.Tag as string == "table")
+                {
+                    mi.IsEnabled = inTable;
+                }
+            }
+        }
+
+        private void CtxCut_Click(object sender, RoutedEventArgs e) => Document.Cut();
+        private void CtxCopy_Click(object sender, RoutedEventArgs e) => Document.Copy();
+        private void CtxPaste_Click(object sender, RoutedEventArgs e) => Document.Paste();
+        private void CtxInsRowAbove_Click(object sender, RoutedEventArgs e) => InsertTableRow(below: false);
+        private void CtxInsRowBelow_Click(object sender, RoutedEventArgs e) => InsertTableRow(below: true);
+        private void CtxInsColLeft_Click(object sender, RoutedEventArgs e) => InsertTableColumn(right: false);
+        private void CtxInsColRight_Click(object sender, RoutedEventArgs e) => InsertTableColumn(right: true);
+        private void CtxDelRow_Click(object sender, RoutedEventArgs e) => DeleteTableRow();
+        private void CtxDelCol_Click(object sender, RoutedEventArgs e) => DeleteTableColumn();
+        private void CtxDelTable_Click(object sender, RoutedEventArgs e) => DeleteTable();
 
         // ---------- Footnotes / endnotes ----------
 

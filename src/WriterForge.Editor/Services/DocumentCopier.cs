@@ -31,6 +31,8 @@ namespace WriterForge.Editor.Services
 
         public static Paragraph Copy(Paragraph source) => CopyParagraph(source);
 
+        public static Table Copy(Table source) => CopyTable(source);
+
         public static Paragraph CopyParagraph(Paragraph source)
         {
             var p = new Paragraph();
